@@ -731,6 +731,9 @@ $form.ContextMenuStrip = $menu
 # ---- UI 侧快速忙碌采样（1.2s 粒度，比 worker 的 6~11s 灵敏得多）----
 $script:cpuPrev = @{}
 $script:lastActive = @{ codex = $null; dsh = $null }
+$script:busyTick = 0
+$script:busyCacheCodex = @{ busy = $false; last = $null }
+$script:busyCacheDsh = @{ busy = $false; last = $null }
 
 function Update-BusyState($ProcIds, [string]$Key) {
   $now = Get-Date
@@ -916,7 +919,7 @@ $timer.Add_Tick({
 
 $script:tickerHold = 0
 $anim = New-Object System.Windows.Forms.Timer
-$anim.Interval = 30
+$anim.Interval = 50
 $anim.Add_Tick({
     $tgtW = $W_C; $tgtH = $H_C
     if ($script:mode -eq 'expanded') { $tgtW = $W_E; $tgtH = $H_E }
@@ -929,7 +932,7 @@ $anim.Add_Tick({
       if ([math]::Abs($diff) -lt 1.5) {
         if ($cur -ne $dst) { $script:size[$k[0]] = $dst; $changed = $true }
       } else {
-        $script:size[$k[0]] = $cur + ($diff * 0.35)
+        $script:size[$k[0]] = $cur + ($diff * 0.5)
         $changed = $true
       }
     }
