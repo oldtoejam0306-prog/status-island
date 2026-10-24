@@ -169,9 +169,8 @@ function Get-BusyState([string]$Key, [int[]]$ProcIds, [double]$Threshold = 0.0) 
   $now = Get-Date
   $sum = 0.0
   $n = 0
-  foreach ($procId in @($ProcIds)) {
-    if (-not $procId) { continue }
-    $pr = Get-Process -Id ([int]$procId) -ErrorAction SilentlyContinue
+  foreach ($procId in $ProcIds) {
+    $pr = Get-Process -Id $procId -ErrorAction SilentlyContinue
     if ($pr) { $sum += [double]$pr.CPU; $n++ }
   }
   $prev = $script:busyPrev[$Key]
@@ -243,7 +242,6 @@ function Get-SystemMetrics {
     $m.codexBusy = Get-BusyState 'codex' $ids
     if ($m.codexBusy) { $script:lastBusyCodex = (Get-Date).ToString('o') }
   }
-  $m.codexPids = @($codexProcs | ForEach-Object { [int]$_.Id })
   $m.codexLast = $script:lastBusyCodex
 
   # DSH：端口在听才算"开启"；用端口占用进程的 CPU 增量判断忙碌
@@ -253,8 +251,6 @@ function Get-SystemMetrics {
     $m.dshBusy = Get-BusyState 'dsh' @([int]$dshConn.OwningProcess)
     if ($m.dshBusy) { $script:lastBusyDsh = (Get-Date).ToString('o') }
   }
-  $m.dshPid = 0
-  if ($dshConn) { $m.dshPid = [int]$dshConn.OwningProcess }
   $m.dshLast = $script:lastBusyDsh
 
   try {
@@ -293,11 +289,9 @@ function Get-Snapshot {
     gpuTotalMB  = $sys.gpuTotalMB
     gpuName     = $sys.gpuName
     codexRun    = $sys.codexRun
-    codexPids   = $sys.codexPids
     codexBusy   = $sys.codexBusy
     codexLast   = $sys.codexLast
     dshUp       = $sys.dshUp
-    dshPid      = $sys.dshPid
     dshBusy     = $sys.dshBusy
     dshLast     = $sys.dshLast
     neteaseUp   = $sys.neteaseUp
@@ -344,11 +338,9 @@ if ($Worker) {
         gpuTotalMB  = $sys.gpuTotalMB
         gpuName     = $sys.gpuName
         codexRun    = $sys.codexRun
-        codexPids   = $sys.codexPids
         codexBusy   = $sys.codexBusy
         codexLast   = $sys.codexLast
         dshUp       = $sys.dshUp
-        dshPid      = $sys.dshPid
         dshBusy     = $sys.dshBusy
         dshLast     = $sys.dshLast
         neteaseUp   = $sys.neteaseUp
@@ -485,13 +477,26 @@ $script:view = @{
 # 上下翻页
 $script:ticker = @{ all = @('正在读取状态…'); idx = 0; sys = @('正在读取状态…'); sysIdx = 0; hold = 0; flipping = $false; progress = 0.0 }
 
+function Draw-PageText($g, [string]$text, [int]$x, [int]$y, [int]$w, [int]$h, [System.Drawing.Color]$color, $font) {
+  $st = $g.Save()
+  $g.SetClip((New-Object System.Drawing.Rectangle($x, $y, $w, $h)))
+  $sf = New-Object System.Drawing.StringFormat
+  $sf.FormatFlags = [System.Drawing.StringFormatFlags]::NoWrap
+  $mh = $g.MeasureString($text, $font).Height
+  $ty = $y + [int](($h - $mh) / 2)
+  $br = New-Object System.Drawing.SolidBrush($color)
+  $g.DrawString($text, $font, $br, [single]$x, [single]$ty, $sf)
+  $br.Dispose()
+  $sf.Dispose()
+  $g.Restore($st)
+}
+
 function Draw-Ticker($g, [string]$which, [int]$x, [int]$y, [int]$w, [int]$h, [System.Drawing.Color]$color) {
   $tk = $script:ticker
   $pages = $tk.all
   $cur = $tk.idx
   if ($which -eq 'sys') { $pages = $tk.sys; $cur = $tk.sysIdx }
   if (-not $pages -or $pages.Count -eq 0) { return }
-
   $st = $g.Save()
   $g.SetClip((New-Object System.Drawing.Rectangle($x, $y, $w, $h)))
   $sf = New-Object System.Drawing.StringFormat
@@ -499,7 +504,6 @@ function Draw-Ticker($g, [string]$which, [int]$x, [int]$y, [int]$w, [int]$h, [Sy
   $mh = $g.MeasureString($pages[$cur], $F_Page).Height
   $ty = $y + [int](($h - $mh) / 2)
   $br = New-Object System.Drawing.SolidBrush($color)
-
   if (-not $tk.flipping -or $pages.Count -lt 2) {
     $g.DrawString($pages[$cur], $F_Page, $br, [single]$x, [single]$ty, $sf)
   } else {
@@ -508,10 +512,7 @@ function Draw-Ticker($g, [string]$which, [int]$x, [int]$y, [int]$w, [int]$h, [Sy
     $g.DrawString($pages[$cur], $F_Page, $br, [single]$x, [single]($ty - $slide), $sf)
     $g.DrawString($pages[$nxt], $F_Page, $br, [single]$x, [single]($ty + $h - $slide), $sf)
   }
-
-  $br.Dispose()
-  $sf.Dispose()
-  $g.Restore($st)
+  $br.Dispose(); $sf.Dispose(); $g.Restore($st)
 }
 $form.Add_Paint({
     param($sender, $e)
@@ -543,40 +544,35 @@ $form.Add_Paint({
 
     if ($frac -lt 0.45) {
       # ---------- 胶囊态（两行：上=系统指标翻页，下=Codex/DSH 常亮） ----------
-      $lineH = 20
-      $accent = New-RoundedPath 9 11 3 32 1.5
-      $ab = New-Object System.Drawing.SolidBrush($v.pillC)
-      $g.FillPath($ab, $accent)
-      $ab.Dispose()
-      $accent.Dispose()
-      Draw-Ticker $g 'sys' 18 4 ($w - 30) $lineH $C_Text
+      $lineH = 22
+      $dotY = 9
+      $dot = New-Object System.Drawing.SolidBrush($v.pillC)
+      $g.FillRectangle($dot, 9, 10, 3, 30)
+      $dot.Dispose()
+      Draw-Ticker $g 'sys' 31 4 ($w - 45) $lineH $C_Text
 
-      $y2 = 28
-      $cx2 = 18
-      $isFirst = $true
+      $y2 = 31
+      $cx2 = 31
       foreach ($chip in $v.chips) {
-        if (-not $isFirst) {
-          [System.Windows.Forms.TextRenderer]::DrawText($g, '·', $F_Small, (New-Object System.Drawing.Point($cx2, $y2)), $C_Faint)
-          $cx2 = $cx2 + 12
-        }
-        $cc = $C_Dim
+        if ($chip.t -eq '网易云') { continue }
+        $cc = $C_Text
         if ($chip.busy) { $cc = $C_Warn }
+        $db = New-Object System.Drawing.SolidBrush($cc)
+        $db.Dispose()
         $txt = ('{0} {1}' -f $chip.t, $chip.state)
-        if ($chip.t -eq '网易云') {
-          $txt = '♪ 网易云'
-          if ($chip.title) {
-            $tt = [string]$chip.title
-            if ($tt.Length -gt 13) { $tt = $tt.Substring(0, 13) + '…' }
-            $txt = '♪ ' + $tt
-          }
-        }
-        $tw = [System.Windows.Forms.TextRenderer]::MeasureText($txt, $F_Small).Width
-        if (($cx2 + $tw) -gt ($w - 12)) { break }
         [System.Windows.Forms.TextRenderer]::DrawText($g, $txt, $F_Small, (New-Object System.Drawing.Point($cx2, $y2)), $cc)
-        $cx2 = $cx2 + $tw + 10
-        $isFirst = $false
+        $cx2 = $cx2 + [System.Windows.Forms.TextRenderer]::MeasureText($txt, $F_Small).Width + 14
       }
-      return
+      
+      $ncT = [string]$script:neteaseTitle
+      if ($ncT) {
+        if ($ncT.Length -gt 12) { $ncT = $ncT.Substring(0, 12) + '…' }
+        $txtN = '♪ ' + $ncT
+        $twN = [System.Windows.Forms.TextRenderer]::MeasureText($txtN, $F_Small).Width
+        if (($cx2 + $twN) -le ($w - 10)) {
+          [System.Windows.Forms.TextRenderer]::DrawText($g, $txtN, $F_Small, (New-Object System.Drawing.Point($cx2, $y2)), $C_Warn)
+        }
+      }return
     }
     # ---------- 展开态（右侧对齐，向左摊开） ----------
     $g.TranslateTransform(($w - $W_E), 0)
@@ -699,12 +695,8 @@ function Start-Worker {
   $old = Get-Content $PidFile -ErrorAction SilentlyContinue
   if ($old) { Stop-Process -Id ([int]$old) -Force -ErrorAction SilentlyContinue }
   Remove-Item $Status -Force -ErrorAction SilentlyContinue
-  if (Test-Path $Launcher) {
-    $script:workerProc = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\wscript.exe') -ArgumentList @("`"$Launcher`"", '-Worker') -WindowStyle Hidden -PassThru
-  } else {
-    $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $script:workerProc = Start-Process -FilePath $psExe -ArgumentList @('-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-Worker') -WindowStyle Hidden -PassThru
-  }
+  $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+  $script:workerProc = Start-Process -FilePath $psExe -ArgumentList @('-NoProfile','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',"`"$PSCommandPath`"",'-Worker') -WindowStyle Hidden -PassThru
   Write-Log ("ui start worker " + $script:workerProc.Id)
 }
 
@@ -728,41 +720,6 @@ $miExit = $menu.Items.Add('退出')
 $miExit.Add_Click({ $form.Close() })
 $form.ContextMenuStrip = $menu
 
-# ---- UI 侧快速忙碌采样（1.2s 粒度，比 worker 的 6~11s 灵敏得多）----
-$script:cpuPrev = @{}
-$script:lastActive = @{ codex = $null; dsh = $null }
-$script:busyTick = 0
-$script:busyCacheCodex = @{ busy = $false; last = $null }
-$script:busyCacheDsh = @{ busy = $false; last = $null }
-
-function Update-BusyState($ProcIds, [string]$Key) {
-  $now = Get-Date
-  $sum = 0.0
-  $n = 0
-  foreach ($procId in @($ProcIds)) {
-    if (-not $procId) { continue }
-    $pr = Get-Process -Id ([int]$procId) -ErrorAction SilentlyContinue
-    if ($pr) { $sum += [double]$pr.CPU; $n++ }
-  }
-  $prev = $script:cpuPrev[$Key]
-  $busyNow = $false
-  if ($prev -and $n -gt 0) {
-    $wall = ($now - $prev.ts).TotalSeconds
-    if ($wall -gt 0.3) {
-      $delta = $sum - $prev.cpu
-      if ($delta -lt 0) { $delta = 0 }
-      $thr = [double]$Cfg.busyThreshold
-      if ($thr -le 0) { $thr = 0.05 }
-      if (($delta / $wall) -gt $thr) { $busyNow = $true }
-    }
-  }
-  $script:cpuPrev[$Key] = @{ cpu = $sum; ts = $now }
-  if ($busyNow) { $script:lastActive[$Key] = $now }
-  $last = $script:lastActive[$Key]
-  $busy = $false
-  if ($last -and ($now - $last).TotalSeconds -le 6) { $busy = $true }
-  return @{ busy = $busy; last = $last }
-}
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 1200
 $timer.Add_Tick({
@@ -799,13 +756,6 @@ $timer.Add_Tick({
     }
 
     $secs = [int]((Get-Date) - [datetime]$s.ts).TotalSeconds
-
-    try { $busyCodex = Update-BusyState $s.codexPids 'codex' } catch { $busyCodex = @{ busy = $false; last = $null } }
-    try { $busyDsh = Update-BusyState $s.dshPid 'dsh' } catch { $busyDsh = @{ busy = $false; last = $null } }
-    $s.codexBusy = [bool]$busyCodex.busy
-    $s.dshBusy = [bool]$busyDsh.busy
-    if ($busyCodex.last) { $s.codexLast = $busyCodex.last.ToString('o') }
-    if ($busyDsh.last) { $s.dshLast = $busyDsh.last.ToString('o') }
     $wdText = '看门狗 ✗'
     if ($wdOk) { $wdText = '看门狗 ✓' }
 
@@ -878,11 +828,10 @@ $timer.Add_Tick({
       $chips += @{ t = 'DSH'; busy = [bool]$s.dshBusy; state = $st }
     }
     if ($s.neteaseUp) {
-      $ncmBusy = $false; $ncmState = '运行中'; $ncmTitle = ''
-      if ($s.neteaseTitle) { $ncmBusy = $true; $ncmState = '在播'; $ncmTitle = [string]$s.neteaseTitle }
-      $chips += @{ t = '网易云'; busy = $ncmBusy; state = $ncmState; title = $ncmTitle }
+      $chips += @{ t = '网易云'; busy = $false; state = '运行中' }
     }
     $script:view.chips = $chips
+    $script:neteaseTitle = [string]$s.neteaseTitle
     $codexTxt = 'Codex 未开'; if ($s.codexRun) { $codexTxt = 'Codex 运行中' }
     $dshTxt = 'DSH 未启动'; if ($s.dshUp) { $dshTxt = ('DSH {0} 在听' -f $Cfg.dshPort) }
     $ncmTxt = '网易云 未运行'; if ($s.neteaseUp) { $ncmTxt = '网易云 运行中' }
@@ -919,7 +868,7 @@ $timer.Add_Tick({
 
 $script:tickerHold = 0
 $anim = New-Object System.Windows.Forms.Timer
-$anim.Interval = 50
+$anim.Interval = 30
 $anim.Add_Tick({
     $tgtW = $W_C; $tgtH = $H_C
     if ($script:mode -eq 'expanded') { $tgtW = $W_E; $tgtH = $H_E }
@@ -932,7 +881,7 @@ $anim.Add_Tick({
       if ([math]::Abs($diff) -lt 1.5) {
         if ($cur -ne $dst) { $script:size[$k[0]] = $dst; $changed = $true }
       } else {
-        $script:size[$k[0]] = $cur + ($diff * 0.5)
+        $script:size[$k[0]] = $cur + ($diff * 0.35)
         $changed = $true
       }
     }
