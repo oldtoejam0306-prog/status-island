@@ -11,8 +11,8 @@
 |---|---|
 | 隧道 | Mac 主机在线状态（Tailscale）、SOCKS5 实际连通性（真的去打 `gstatic/generate_204`）、ChatGPT 当前出口（经 Mac / 机场 / 直连） |
 | 系统 | CPU、内存、磁盘 C/D 占比（带进度条，<65% 绿 / <88% 黄 / 更高红）、GPU 利用率与显存（NVIDIA） |
-| 服务 | Codex（进程）、DSH（端口）、网易云（进程）——名字、进程名、端口都可配 |
-| 底栏 | 上下翻页：CPU/内存 → 磁盘 → GPU → Codex+DSH → 网易云+看门狗 → 隧道+出口 → 建议 |
+| 服务 | Codex（进程）、DSH（端口）、网易云（进程）。**没在运行就不显示**；运行中显示 `空闲` / `工作中`（按 CPU 增量判定），并记录「上次活动」时间 |
+| 底栏 | 上下翻页：CPU/内存 → 磁盘 → GPU → Codex+DSH 状态 → 网易云+看门狗 → 隧道+出口 → 上次活动 → 建议 |
 
 右上角胶囊表示总体健康度：`正常 / 降级 / 异常 / 离线`。
 
@@ -64,6 +64,7 @@ powershell -File "$env:LOCALAPPDATA\StatusIsland\StatusIsland.ps1" -Once   # 采
 | `watchdogLockPath` | 可选：隧道看门狗的锁文件路径，用来显示 `看门狗 ✓/✗` | 空 = 不显示 |
 | `tunnelStartScript` | 可选：右键「重连 Mac 隧道」要执行的 ps1 | 空 = 菜单项不动作 |
 | `clashExe` | 可选：右键「打开 Clash Verge」的程序路径或命令 | `clash-verge.exe` |
+| `busyThreshold` | 判定「工作中」的 CPU 阈值（相对单核，0.06 = 6%） | 0.06 |
 
 配置里只写这台机器的路径/IP，不涉及任何凭据；SSH 私钥只由那个 `tunnelStartScript` 自己使用。
 

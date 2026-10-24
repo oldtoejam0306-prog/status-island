@@ -16,6 +16,7 @@ $Cfg = [ordered]@{
   watchdogLockPath  = ''                                              # 可选：看门狗锁文件，留空则不显示守护状态
   tunnelStartScript = ''                                              # 可选：右键“重连隧道”要执行的脚本
   clashExe          = 'clash-verge.exe'                                # 可选：右键打开 Clash Verge 的程序
+  busyThreshold     = 0.06                                          # 判定「工作中」的 CPU 阈值（0.06 = 单核 6%）
 }
 if (Test-Path -LiteralPath $ConfigFile) {
   try {
@@ -159,12 +160,41 @@ function Get-Route([string]$PipePath) {
   return [ordered]@{ ok = $false; name = '' }
 }
 
+$script:busyPrev = @{}
+$script:lastBusyCodex = $null
+$script:lastBusyDsh = $null
+
+function Get-BusyState([string]$Key, [int[]]$ProcIds, [double]$Threshold = 0.0) {
+  if ($Threshold -le 0) { $Threshold = [double]$Cfg.busyThreshold }
+  $now = Get-Date
+  $sum = 0.0
+  $n = 0
+  foreach ($procId in $ProcIds) {
+    $pr = Get-Process -Id $procId -ErrorAction SilentlyContinue
+    if ($pr) { $sum += [double]$pr.CPU; $n++ }
+  }
+  $prev = $script:busyPrev[$Key]
+  $busy = $false
+  if ($prev -and $n -gt 0) {
+    $wall = ($now - $prev.ts).TotalSeconds
+    if ($wall -gt 0.5) {
+      $delta = $sum - $prev.cpu
+      if ($delta -lt 0) { $delta = 0 }
+      $busy = (($delta / $wall) -gt $Threshold)
+    }
+  }
+  $script:busyPrev[$Key] = @{ cpu = $sum; ts = $now }
+  return $busy
+}
+
 function Get-SystemMetrics {
   $m = [ordered]@{
     cpu = -1; mem = -1; memTotalGB = 0; memFreeGB = 0
     diskC = -1; diskD = -1
     gpuUtil = -1; gpuUsedMB = 0; gpuTotalMB = 0; gpuName = ''
-    codexRun = $false; dshUp = $false; neteaseUp = $false; neteaseTitle = ''
+    codexRun = $false; codexBusy = $false; codexLast = $null
+    dshUp = $false; dshBusy = $false; dshLast = $null
+    neteaseUp = $false; neteaseTitle = ''
     nvidia = $false
   }
   try {
@@ -190,11 +220,11 @@ function Get-SystemMetrics {
     try {
       $line = (& $NvidiaSmi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits 2>$null) | Select-Object -First 1
       if ($line) {
-        $p = $line -split ','
-        if ($p.Count -ge 3) {
-          $m.gpuUtil = [int]($p[0].Trim())
-          $m.gpuUsedMB = [int]($p[1].Trim())
-          $m.gpuTotalMB = [int]($p[2].Trim())
+        $pv = $line -split ','
+        if ($pv.Count -ge 3) {
+          $m.gpuUtil = [int]($pv[0].Trim())
+          $m.gpuUsedMB = [int]($pv[1].Trim())
+          $m.gpuTotalMB = [int]($pv[2].Trim())
           $m.nvidia = $true
         }
       }
@@ -203,15 +233,32 @@ function Get-SystemMetrics {
   if (-not $m.nvidia) {
     try { $m.gpuName = (Get-CimInstance Win32_VideoController | Select-Object -First 1).Name } catch { }
   }
-  try { $m.codexRun = ((Get-Process $Cfg.codexProcess -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) } catch { }
-  $m.dshUp = Test-TcpPort $Cfg.dshPort 400
+
+  # Codex：进程存在才算"开启"；CPU 增量判断忙碌；记录最近一次忙碌时刻（= 上次任务活动）
+  $codexProcs = @(Get-Process $Cfg.codexProcess -ErrorAction SilentlyContinue)
+  $m.codexRun = ($codexProcs.Count -gt 0)
+  if ($m.codexRun) {
+    $ids = @($codexProcs | ForEach-Object { [int]$_.Id })
+    $m.codexBusy = Get-BusyState 'codex' $ids
+    if ($m.codexBusy) { $script:lastBusyCodex = (Get-Date).ToString('o') }
+  }
+  $m.codexLast = $script:lastBusyCodex
+
+  # DSH：端口在听才算"开启"；用端口占用进程的 CPU 增量判断忙碌
+  $dshConn = Get-NetTCPConnection -LocalPort $Cfg.dshPort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($dshConn) {
+    $m.dshUp = $true
+    $m.dshBusy = Get-BusyState 'dsh' @([int]$dshConn.OwningProcess)
+    if ($m.dshBusy) { $script:lastBusyDsh = (Get-Date).ToString('o') }
+  }
+  $m.dshLast = $script:lastBusyDsh
+
   try {
     $ncm = Get-Process $Cfg.neteaseProcess -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($ncm) { $m.neteaseUp = $true; $m.neteaseTitle = [string]$ncm.MainWindowTitle }
   } catch { }
   return $m
 }
-
 function Get-Snapshot {
   $mac = Get-MacState
   $port = Test-TcpPort $Cfg.socksPort 500
@@ -242,7 +289,11 @@ function Get-Snapshot {
     gpuTotalMB  = $sys.gpuTotalMB
     gpuName     = $sys.gpuName
     codexRun    = $sys.codexRun
+    codexBusy   = $sys.codexBusy
+    codexLast   = $sys.codexLast
     dshUp       = $sys.dshUp
+    dshBusy     = $sys.dshBusy
+    dshLast     = $sys.dshLast
     neteaseUp   = $sys.neteaseUp
     neteaseTitle= $sys.neteaseTitle
   }
@@ -287,7 +338,11 @@ if ($Worker) {
         gpuTotalMB  = $sys.gpuTotalMB
         gpuName     = $sys.gpuName
         codexRun    = $sys.codexRun
+        codexBusy   = $sys.codexBusy
+        codexLast   = $sys.codexLast
         dshUp       = $sys.dshUp
+        dshBusy     = $sys.dshBusy
+        dshLast     = $sys.dshLast
         neteaseUp   = $sys.neteaseUp
         neteaseTitle= $sys.neteaseTitle
       }
@@ -490,19 +545,17 @@ $form.Add_Paint({
 
       $y2 = 31
       $cx2 = 16
-      $cFast = $C_Faint; if ($v.chips[0].ok) { $cFast = $C_Ok }
-      $cDs = $C_Faint; if ($v.chips[1].ok) { $cDs = $C_Ok }
-      $brFast = New-Object System.Drawing.SolidBrush($cFast)
-      $brDs = New-Object System.Drawing.SolidBrush($cDs)
-      $g.FillEllipse($brFast, $cx2, ($y2 + 7), 6, 6)
-      $brFast.Dispose()
-      $c1 = $C_Faint; if ($v.chips[0].ok) { $c1 = $C_Ok }
-      [System.Windows.Forms.TextRenderer]::DrawText($g, 'Codex', $F_Small, (New-Object System.Drawing.Point(($cx2 + 10), $y2)), $c1)
-      $cx2 = $cx2 + 10 + [System.Windows.Forms.TextRenderer]::MeasureText('Codex', $F_Small).Width + 16
-      $g.FillEllipse($brDs, $cx2, ($y2 + 7), 6, 6)
-      $brDs.Dispose()
-      $c2 = $C_Faint; if ($v.chips[1].ok) { $c2 = $C_Ok }
-      [System.Windows.Forms.TextRenderer]::DrawText($g, 'DSH', $F_Small, (New-Object System.Drawing.Point(($cx2 + 10), $y2)), $c2)
+      foreach ($chip in $v.chips) {
+        if ($chip.t -eq '网易云') { continue }
+        $cc = $C_Ok
+        if ($chip.busy) { $cc = $C_Warn }
+        $db = New-Object System.Drawing.SolidBrush($cc)
+        $g.FillEllipse($db, $cx2, ($y2 + 8), 7, 7)
+        $db.Dispose()
+        $txt = ('{0} {1}' -f $chip.t, $chip.state)
+        [System.Windows.Forms.TextRenderer]::DrawText($g, $txt, $F_Small, (New-Object System.Drawing.Point(($cx2 + 11), $y2)), $cc)
+        $cx2 = $cx2 + 11 + [System.Windows.Forms.TextRenderer]::MeasureText($txt, $F_Small).Width + 14
+      }
       return
     }
     # ---------- 展开态（右侧对齐，向左摊开） ----------
@@ -569,12 +622,17 @@ $form.Add_Paint({
 
     $g.DrawLine($pen2, $PadX, 224, ($W_E - $PadX), 224)
 
-    $chipW = [int](($W_E - 2 * $PadX - 2 * 8) / 3)
+    $chipCount = $v.chips.Count
+    if ($chipCount -lt 1) { $chipCount = 1 }
+    $chipW = [int](($W_E - 2 * $PadX - 2 * 8 * ($chipCount - 1)) / $chipCount)
     $cx = $PadX
+    if ($v.chips.Count -eq 0) {
+      [System.Windows.Forms.TextRenderer]::DrawText($g, 'Codex / DSH 未运行', $F_Small, (New-Object System.Drawing.Point($PadX, 233)), $C_Faint)
+    }
     foreach ($chip in $v.chips) {
+      $cColor = $C_Ok
+      if ($chip.busy) { $cColor = $C_Warn }
       $cPath = New-RoundedPath $cx 231 $chipW 22 7
-      $cColor = $C_Faint
-      if ($chip.ok) { $cColor = $C_Ok }
       $cb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(34, $cColor.R, $cColor.G, $cColor.B))
       $g.FillPath($cb, $cPath)
       $cb.Dispose()
@@ -582,7 +640,9 @@ $form.Add_Paint({
       $db = New-Object System.Drawing.SolidBrush($cColor)
       $g.FillEllipse($db, ($cx + 10), 239, 5, 5)
       $db.Dispose()
-      [System.Windows.Forms.TextRenderer]::DrawText($g, $chip.t, $F_Small, (New-Object System.Drawing.Point(($cx + 20), 233)), $cColor)
+      $label = $chip.t
+      if ($chipW -ge 118) { $label = ('{0} {1}' -f $chip.t, $chip.state) }
+      [System.Windows.Forms.TextRenderer]::DrawText($g, $label, $F_Small, (New-Object System.Drawing.Point(($cx + 20), 233)), $cColor)
       $cx += $chipW + 8
     }
 
@@ -746,16 +806,29 @@ $timer.Add_Tick({
       @{ l = '磁盘 D'; v = "$dD%"; pct = $dD; c = (Get-BarColor $dD) },
       @{ l = 'GPU'; v = $gpuV; pct = $gu; c = (Get-BarColor $gu) }
     )
-    $script:view.chips = @(
-      @{ t = 'Codex'; ok = [bool]$s.codexRun },
-      @{ t = 'DSH'; ok = [bool]$s.dshUp },
-      @{ t = '网易云'; ok = [bool]$s.neteaseUp }
-    )
-
+    $chips = @()
+    if ($s.codexRun) {
+      $st = '空闲'; if ($s.codexBusy) { $st = '工作中' }
+      $chips += @{ t = 'Codex'; busy = [bool]$s.codexBusy; state = $st }
+    }
+    if ($s.dshUp) {
+      $st = '空闲'; if ($s.dshBusy) { $st = '工作中' }
+      $chips += @{ t = 'DSH'; busy = [bool]$s.dshBusy; state = $st }
+    }
+    if ($s.neteaseUp) {
+      $chips += @{ t = '网易云'; busy = $false; state = '运行中' }
+    }
+    $script:view.chips = $chips
     $codexTxt = 'Codex 未开'; if ($s.codexRun) { $codexTxt = 'Codex 运行中' }
     $dshTxt = 'DSH 未启动'; if ($s.dshUp) { $dshTxt = ('DSH {0} 在听' -f $Cfg.dshPort) }
     $ncmTxt = '网易云 未运行'; if ($s.neteaseUp) { $ncmTxt = '网易云 运行中' }
     if ($s.neteaseTitle) { $ncmTxt = '网易云 ' + $s.neteaseTitle }
+    $codexDone = '未运行'; if ($s.codexRun) { $codexDone = '空闲' }
+    if ($s.codexBusy) { $codexDone = '工作中' }
+    if ($s.codexRun -and $s.codexLast) { try { $codexDone = $codexDone + ' · 上次 ' + ([datetime]$s.codexLast).ToString('HH:mm') } catch { } }
+    $dshDone = '未运行'; if ($s.dshUp) { $dshDone = '空闲' }
+    if ($s.dshBusy) { $dshDone = '工作中' }
+    if ($s.dshUp -and $s.dshLast) { try { $dshDone = $dshDone + ' · 上次 ' + ([datetime]$s.dshLast).ToString('HH:mm') } catch { } }
     $hint = '机场兜底中（Mac 不可用）'
     if (-not $s.routeOk) { $hint = '读取不到 Clash 状态' }
     elseif ($s.socksOk -and -not $viaMac) { $hint = '隧道已通，可切回 Mac 省流量' }
@@ -775,6 +848,7 @@ $timer.Add_Tick({
       ("{0}   ·   {1}" -f $codexTxt, $dshTxt),
       ("{0}   ·   {1}" -f $ncmTxt, $wdText),
       ("隧道 {0}   ·   出口 {1}" -f $pill, $routeV),
+      ("Codex {0}   ·   DSH {1}" -f $codexDone, $dshDone),
       ("{0}s 前更新   ·   → {1}" -f $secs, $hint)
     )
   })
