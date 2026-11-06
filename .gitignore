@@ -12,3 +12,13 @@ widget.log
 Thumbs.db
 .DS_Store
 *.bak-*
+
+# 新版集成状态台：不要提交本地数据和构建产物
+integrated/state/
+**/bin/
+**/obj/
+*.user
+*.pfx
+*.key
+.env
+.env.*

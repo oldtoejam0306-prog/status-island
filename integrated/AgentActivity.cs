@@ -1,0 +1,25 @@
+using System;using System.IO;using System.Collections.Generic;using System.Web.Script.Serialization;
+namespace IslandIntegrated {
+ public sealed class AgentTaskState {
+  public string State="unknown",Source="not-connected";public DateTimeOffset ObservedAt;
+  public bool LifecycleVerified;public DateTimeOffset SourceCheckedAt;public bool Fresh(DateTimeOffset now){if(LifecycleVerified)return State!="unknown"&&(now-SourceCheckedAt).TotalSeconds>=-3&&(now-SourceCheckedAt).TotalSeconds<=5;return State!="unknown"&&(now-ObservedAt).TotalSeconds>=-3&&(now-ObservedAt).TotalSeconds<=15;}
+  public string Effective(DateTimeOffset now){return Fresh(now)?State:"unknown";}
+  public string Label(DateTimeOffset now){switch(Effective(now)){case "working":return "\u5de5\u4f5c\u4e2d";case "idle":return "\u7a7a\u95f2";case "waiting":return "\u7b49\u5f85\u786e\u8ba4";case "offline":return "\u79bb\u7ebf";case "error":return "\u72b6\u6001\u5f02\u5e38";default:return "\u672a\u63a5\u5165";}}
+ }
+ public sealed class AgentActivity {
+  static readonly SidebarAgentLifecycle.Reader lifecycleReader=new SidebarAgentLifecycle.Reader();static AgentActivity lifecycleLatest=new AgentActivity();static int lifecyclePending;
+  static AgentTaskState FromEvent(SidebarAgentLifecycle.View value,string expected){return value==null||value.Source!=expected||Array.IndexOf(new[]{"working","waiting","idle","offline","unknown","error"},value.State)<0||value.ObservedAt>value.CheckedAt.AddSeconds(3)?new AgentTaskState():new AgentTaskState{State=value.State,Source=value.Source,ObservedAt=value.ObservedAt,LifecycleVerified=value.State!="unknown",SourceCheckedAt=value.CheckedAt};}
+  public static AgentActivity FromLifecycle(SidebarAgentLifecycle.View codex,SidebarAgentLifecycle.View claude){return new AgentActivity{Codex=FromEvent(codex,"codex-lifecycle-hooks"),Claude=FromEvent(claude,"claude-code-hooks")};}
+  public static AgentActivity Load(string file){var legacy=LoadLegacy(file);if(legacy.Codex.Source!="not-connected"||legacy.Claude.Source!="not-connected")return legacy;if(System.Threading.Interlocked.CompareExchange(ref lifecyclePending,1,0)==0)System.Threading.Tasks.Task.Run(()=>{try{var now=DateTimeOffset.UtcNow;var result=FromLifecycle(lifecycleReader.Read("codex",now),lifecycleReader.Read("claude-code",now));System.Threading.Volatile.Write(ref lifecycleLatest,result);}finally{System.Threading.Interlocked.Exchange(ref lifecyclePending,0);}});return System.Threading.Volatile.Read(ref lifecycleLatest);}
+
+  public AgentTaskState Codex=new AgentTaskState(),Claude=new AgentTaskState();
+  static string S(IDictionary<string,object>d,string k){object v;return d.TryGetValue(k,out v)&&v is string?(string)v:"";}
+  static AgentTaskState One(object value,string expectedSource){var d=value as IDictionary<string,object>;if(d==null)return new AgentTaskState();foreach(string k in d.Keys)if(k!="state"&&k!="source"&&k!="observedUtc")return new AgentTaskState();DateTimeOffset at;string stamp=S(d,"observedUtc"),state=S(d,"state");if(S(d,"source")!=expectedSource||!System.Text.RegularExpressions.Regex.IsMatch(stamp,@"(Z|[+-]\d\d:\d\d)$")||!DateTimeOffset.TryParse(stamp,out at)||Array.IndexOf(new[]{"working","idle","waiting","offline","unknown","error"},state)<0)return new AgentTaskState();return new AgentTaskState{State=state,Source=expectedSource,ObservedAt=at};}
+  public static AgentActivity Parse(string raw){try{if(raw==null||raw.Length>8192)return new AgentActivity();var d=new JavaScriptSerializer{MaxJsonLength=8192,RecursionLimit=5}.DeserializeObject(raw) as IDictionary<string,object>;if(d==null||S(d,"schema")!="sidebar.agent-activity.v1")return new AgentActivity();foreach(string k in d.Keys)if(k!="schema"&&k!="codex"&&k!="claude")return new AgentActivity();object a,b;d.TryGetValue("codex",out a);d.TryGetValue("claude",out b);return new AgentActivity{Codex=One(a,"codex-app-server"),Claude=One(b,"claude-code-hooks")};}catch{return new AgentActivity();}}
+  static AgentActivity LoadLegacy(string file){try{var f=new FileInfo(file);if(!f.Exists||f.Length>8192||(f.Attributes&FileAttributes.ReparsePoint)!=0)return new AgentActivity();for(var p=f.Directory;p!=null;p=p.Parent)if(p.Exists&&(p.Attributes&FileAttributes.ReparsePoint)!=0)return new AgentActivity();using(var stream=new FileStream(file,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete)){var bytes=new byte[8193];int read=0,n;while(read<bytes.Length&&(n=stream.Read(bytes,read,bytes.Length-read))>0)read+=n;if(read>8192)return new AgentActivity();return Parse(new System.Text.UTF8Encoding(false,true).GetString(bytes,0,read));}}catch{return new AgentActivity();}}
+ }
+ public sealed class StatusFrameData {
+  public readonly LegacySnapshot Snapshot;public readonly string Current,Next;public readonly double Phase;
+  public StatusFrameData(LegacySnapshot snapshot,int page,double phase){Snapshot=snapshot;var pages=StatusPerformance.Pages(snapshot);int index=((page%pages.Length)+pages.Length)%pages.Length;Current=pages[index];Next=pages[(index+1)%pages.Length];Phase=phase;}
+ }
+}
