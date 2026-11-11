@@ -1,44 +1,27 @@
-﻿param([switch]$FunctionsOnly)
+﻿param([switch]$Initialize,[switch]$FunctionsOnly,[string]$StateHome)
 $ErrorActionPreference='Stop'
-function Copy-SidebarState([string]$From,[string]$To) {
-  function AssertPlainPath([string]$value) {
-    $cursor=[IO.Path]::GetFullPath($value)
-    while($cursor){if(Test-Path -LiteralPath $cursor){if((Get-Item -LiteralPath $cursor -Force).Attributes-band [IO.FileAttributes]::ReparsePoint){throw 'State_reparse_path_denied'}};$parent=[IO.Path]::GetDirectoryName($cursor);if($parent-eq $cursor){break};$cursor=$parent}
-  }
-  AssertPlainPath $From;AssertPlainPath $To
-  [IO.Directory]::CreateDirectory($To)|Out-Null
+function Get-SidebarSHA256([byte[]]$Bytes){$sha=[Security.Cryptography.SHA256]::Create();try{return [BitConverter]::ToString($sha.ComputeHash($Bytes)).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}}
+function Assert-SidebarPlainPath([string]$Value){$cursor=[IO.Path]::GetFullPath($Value);while($cursor){if(Test-Path -LiteralPath $cursor){if((Get-Item -LiteralPath $cursor -Force).Attributes-band [IO.FileAttributes]::ReparsePoint){throw 'State_reparse_path_denied'}};$parent=[IO.Path]::GetDirectoryName($cursor);if($parent-eq $cursor){break};$cursor=$parent}}
+function Copy-SidebarState([string]$From,[string]$To){
+  if([string]::IsNullOrWhiteSpace($From)-or [string]::IsNullOrWhiteSpace($To)){throw 'Both state paths are required.'}
+  $fromPath=[IO.Path]::GetFullPath($From);$toPath=[IO.Path]::GetFullPath($To);if($fromPath-eq $toPath){throw 'State source and target must differ.'}
+  Assert-SidebarPlainPath $fromPath;Assert-SidebarPlainPath $toPath;[IO.Directory]::CreateDirectory($toPath)|Out-Null
   $receipt=@{schema=1;utc=[DateTime]::UtcNow.ToString('o');files=@()}
   foreach($name in @('layout.xml','layout.xml.bak','pos.json')){
-    $source=Join-Path $From $name;$target=Join-Path $To $name
-    AssertPlainPath $source;AssertPlainPath $target
+    $source=Join-Path $fromPath $name;$target=Join-Path $toPath $name;Assert-SidebarPlainPath $source;Assert-SidebarPlainPath $target
     if([IO.File]::Exists($target)){$receipt.files+=@{name=$name;status='existing-target-preserved'};continue}
     if(-not [IO.File]::Exists($source)){$receipt.files+=@{name=$name;status='source-not-present'};continue}
     if((Get-Item -LiteralPath $source).Length-gt 1048576){throw 'State_file_too_large'}
-    $bytes=[IO.File]::ReadAllBytes($source);$again=[IO.File]::ReadAllBytes($source)
-    $sha=[Security.Cryptography.SHA256]::Create()
-    try{$digest=[BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-','').ToLowerInvariant();$check=[BitConverter]::ToString($sha.ComputeHash($again)).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+    $bytes=[IO.File]::ReadAllBytes($source);$again=[IO.File]::ReadAllBytes($source);$digest=Get-SidebarSHA256 $bytes;$check=Get-SidebarSHA256 $again
     if($digest-cne $check){throw 'Source_state_changed_during_read'}
-    $backups=Join-Path $To 'backups\from-position-management-fix';AssertPlainPath $backups;[IO.Directory]::CreateDirectory($backups)|Out-Null
+    $backups=Join-Path $toPath 'backups\imported-state';Assert-SidebarPlainPath $backups;[IO.Directory]::CreateDirectory($backups)|Out-Null
     $backup=Join-Path $backups ($digest+'-'+$name)
-    if(-not [IO.File]::Exists($backup)){$f=[IO.File]::Open($backup,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);try{$f.Write($bytes,0,$bytes.Length);$f.Flush($true)}finally{$f.Dispose()}}
-    $temporary=$target+'.handoff-'+[guid]::NewGuid().ToString('N')+'.tmp'
+    if([IO.File]::Exists($backup)){$backupBytes=[IO.File]::ReadAllBytes($backup);if((Get-SidebarSHA256 $backupBytes)-cne $digest){throw 'State_backup_corrupt'}}else{$f=[IO.File]::Open($backup,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);try{$f.Write($bytes,0,$bytes.Length);$f.Flush($true)}finally{$f.Dispose()}}
+    $temporary=$target+'.handoff-'+[guid]::NewGuid().ToString('N')+'.tmp';Assert-SidebarPlainPath $temporary
     $f=[IO.File]::Open($temporary,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);try{$f.Write($bytes,0,$bytes.Length);$f.Flush($true)}finally{$f.Dispose()}
-    [IO.File]::Move($temporary,$target)
+    try{[IO.File]::Move($temporary,$target)}catch{if([IO.File]::Exists($temporary)){[IO.File]::Delete($temporary)};throw}
     $receipt.files+=@{name=$name;status='copied-with-backup';bytes=$bytes.Length;sha256=$digest}
   }
   return $receipt
 }
-function Get-SidebarSHA256([string]$filePath){
-  $stream=[IO.File]::OpenRead($filePath);$algorithm=[Security.Cryptography.SHA256]::Create()
-  try{return [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-','').ToLowerInvariant()}
-  finally{$algorithm.Dispose();$stream.Dispose()}
-}
-if(-not $FunctionsOnly){
-  # Classified workspace remains inactive until explicit configuration handoff.
-  $marker=Join-Path $PSScriptRoot 'state\workspace-ready.json'
-  if(-not [IO.File]::Exists($marker)){throw 'Classified workspace staged only; configuration handoff is pending.'}
-  $ready=[IO.File]::ReadAllText($marker)|ConvertFrom-Json
-  $manifestHash=Get-SidebarSHA256 (Join-Path $PSScriptRoot 'FILE-MANIFEST.json')
-  if($ready.schema-ne 'sidebar.workspace-ready.v1' -or $ready.ready-ne $true -or $ready.manifestSha256-cne $manifestHash -or $ready.stateDisposition-notin @('imported','explicit-clean-start','no-prior-layout')){throw 'Workspace activation record does not cover this exact candidate.'}
-  # No implicit read/copy from a sibling, old C workspace, credentials or private state.
-}
+if($Initialize){if([string]::IsNullOrWhiteSpace($StateHome)){throw 'StateHome must be specified.'};$root=[IO.Path]::GetFullPath($StateHome);[IO.Directory]::CreateDirectory($root)|Out-Null;[IO.Directory]::CreateDirectory((Join-Path $root 'logs'))|Out-Null;foreach($pair in @(@('config.example.json','config.json'),@('pinky-host-connection.example.json','pinky-host-connection.json'),@('pinky-start.example.json','pinky-start.json'))){$sample=Join-Path $PSScriptRoot $pair[0];$target=Join-Path $root $pair[1];if([IO.File]::Exists($sample)-and -not [IO.File]::Exists($target)){Copy-Item -LiteralPath $sample -Destination $target}}}

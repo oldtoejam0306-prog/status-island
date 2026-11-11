@@ -1,0 +1,10 @@
+{
+  "schema": "sidebar.pinky-start.v1",
+  "enabled": false,
+  "candidateExecutable": "",
+  "candidateSha256": "",
+  "officialExecutable": "",
+  "officialSha256": "",
+  "profileDirectory": "",
+  "hostDirectory": ""
+}

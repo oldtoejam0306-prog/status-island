@@ -1,0 +1,10 @@
+{
+  "schema": "sidebar.public-config.v1",
+  "ccSwitchLaunch": "",
+  "autoloopEnabled": false,
+  "autoloopHost": "",
+  "autoloopAccount": "",
+  "autoloopKeyFile": "",
+  "autoloopNode": "",
+  "autoloopRemoteScript": ""
+}

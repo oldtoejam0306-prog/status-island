@@ -3,17 +3,27 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 namespace IslandIntegrated {
- // Compact offline adaptation of the Autoloop liquid card. No transport or actions are wired.
  public sealed class AutoloopSidebarControl : Control {
-  public AutoloopSidebarControl(){SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw,true);AccessibleName="Autoloop，未连接";AccessibleDescription="尚未连接，无法显示任务或执行操作。";}
-  protected override void OnPaint(PaintEventArgs e){base.OnPaint(e);var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;var r=new Rectangle(1,1,Math.Max(1,Width-3),Math.Max(1,Height-3));
-   using(var path=GlassSurface.Path(r,16)){using(var b=new LinearGradientBrush(r,Color.FromArgb(67,79,89),Color.FromArgb(27,39,50),90f))g.FillPath(b,path);using(var pen=new Pen(Color.FromArgb(115,190,211,221)))g.DrawPath(pen,path);}
-   int pad=15; using(var title=new Font("Microsoft YaHei UI",10.5f,FontStyle.Bold)) using(var body=new Font("Microsoft YaHei UI",9f)) {
-    TextRenderer.DrawText(g,"Autoloop",title,new Rectangle(pad,15,Math.Max(1,Width-2*pad),25),Color.FromArgb(234,242,249),TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);
-    using(var dot=new SolidBrush(Color.FromArgb(158,175,184)))g.FillEllipse(dot,pad,52,7,7);
-    TextRenderer.DrawText(g,"未连接",body,new Rectangle(pad+13,45,Math.Max(1,Width-pad-20),25),Color.FromArgb(183,210,220),TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);
-    TextRenderer.DrawText(g,"连接后显示任务",body,new Rectangle(pad,82,Math.Max(1,Width-2*pad),44),Color.FromArgb(168,184,194),TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix);
-   }
+  Bitmap material;AutoloopSnapshot snapshot; bool busy; string feedback; readonly Timer freshnessTimer=new Timer{Interval=1000};
+  public event Action<string,string,string> AnswerRequested;
+  public event EventHandler DetailsRequested;
+  public AutoloopSidebarControl(){SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw|ControlStyles.Selectable,true);TabStop=true;Cursor=Cursors.Hand;AccessibleRole=AccessibleRole.PushButton;freshnessTimer.Tick+=(s,e)=>{AccessibleName="Autoloop，"+StateText();Invalidate();};freshnessTimer.Start();Present(null,false,null);}
+  public void Present(AutoloopSnapshot value,bool pending,string message){snapshot=value;busy=pending;feedback=message;AccessibleName="Autoloop，"+StateText();AccessibleDescription=Detail();Invalidate();}
+  public static bool IsFresh(AutoloopSnapshot value,DateTimeOffset now){if(value==null||value.State!="connected"||!value.ObservedAt.HasValue)return false;var age=now-value.ObservedAt.Value;return age<=TimeSpan.FromSeconds(30)&&age>=TimeSpan.FromSeconds(-5);}
+  protected override void Dispose(bool disposing){if(disposing){freshnessTimer.Dispose();if(material!=null){material.Dispose();material=null;}}base.Dispose(disposing);}
+  string StateText(){if(snapshot==null)return "未连接";if(snapshot.State=="connected"&&!IsFresh(snapshot,DateTimeOffset.UtcNow))return "数据已过期";switch(snapshot.State){case "connected":return "已连接";case "stale":return "数据已过期";case "offline":return "未连接";default:return "数据不可用";}}
+  string Detail(){if(!String.IsNullOrEmpty(feedback))return feedback;if(busy)return "正在提交，请等待确认";if(snapshot==null)return "尚未连接";return String.IsNullOrEmpty(snapshot.QuestionText)?(snapshot.TaskTitle??snapshot.Summary??""):snapshot.QuestionText;}
+  protected override void OnPaint(PaintEventArgs e){base.OnPaint(e);var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;if(!GlassComposition.Active||!(Parent is WidgetPanel)){if(material==null)material=GlassSurface.CardBackground(Size);GlassComposition.DrawImageReplacing(g,material,0,0);}g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;int pad=15;using(var title=new Font("Microsoft YaHei UI",14f,FontStyle.Bold))using(var body=new Font("Microsoft YaHei UI",12f)){DrawText(g,"Autoloop",title,new Rectangle(pad,12,Math.Max(1,Width-2*pad),24),Palette.Text,TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);using(var dot=new SolidBrush(IsFresh(snapshot,DateTimeOffset.UtcNow)?Color.FromArgb(120,212,178):Color.FromArgb(158,175,184)))g.FillEllipse(dot,pad,45,7,7);DrawText(g,StateText(),body,new Rectangle(pad+13,38,Math.Max(1,Width-pad-20),24),Palette.Secondary,TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);DrawText(g,Detail(),body,new Rectangle(pad,65,Math.Max(1,Width-2*pad),Math.Max(1,Height-91)),Palette.Text,TextFormatFlags.WordBreak|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);if(snapshot!=null&&IsFresh(snapshot,DateTimeOffset.UtcNow)&&!String.IsNullOrEmpty(snapshot.QuestionId)&&(snapshot.Options==null||snapshot.Options.Length==0))DrawText(g,"仅支持问题选项",body,new Rectangle(pad,Height-27,Math.Max(1,Width-2*pad),22),Palette.Secondary,TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);if(DetailsRequested!=null)DrawText(g,"查看详情 ›",body,new Rectangle(pad,Height-27,Math.Max(1,Width-2*pad),22),Palette.Accent,TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);else if(CanAnswer())DrawText(g,"查看问题与选项 ›",body,new Rectangle(pad,Height-27,Math.Max(1,Width-2*pad),22),Palette.Accent,TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);}}
+  protected override void OnSizeChanged(EventArgs e){if(material!=null){material.Dispose();material=null;}base.OnSizeChanged(e);}
+  static void DrawText(Graphics g,string value,Font font,Rectangle bounds,Color color,TextFormatFlags flags){
+    using(var brush=new SolidBrush(color))using(var format=new StringFormat{Trimming=StringTrimming.EllipsisCharacter}){
+      if((flags&TextFormatFlags.WordBreak)==0)format.FormatFlags=StringFormatFlags.NoWrap;
+      g.DrawString(value??"",font,brush,bounds,format);
+    }
   }
+  bool CanAnswer(){return !busy&&IsFresh(snapshot,DateTimeOffset.UtcNow)&&!String.IsNullOrEmpty(snapshot.QuestionId)&&!String.IsNullOrEmpty(snapshot.CardFingerprint)&&snapshot.Options!=null&&snapshot.Options.Length>0;}
+  protected override void OnClick(EventArgs e){base.OnClick(e);ShowQuestion();}
+  protected override void OnKeyDown(KeyEventArgs e){base.OnKeyDown(e);if(e.KeyCode==Keys.Enter||e.KeyCode==Keys.Space){e.Handled=true;ShowQuestion();}}
+  void ShowQuestion(){var details=DetailsRequested;if(details!=null){details(this,EventArgs.Empty);return;}if(!CanAnswer())return;var current=snapshot;using(var dialog=new Form{Text="Autoloop 问题",StartPosition=FormStartPosition.CenterScreen,Size=new Size(420,320),MinimizeBox=false,MaximizeBox=false,ShowInTaskbar=false}){var flow=new FlowLayoutPanel{Dock=DockStyle.Fill,FlowDirection=FlowDirection.TopDown,WrapContents=false,AutoScroll=true,Padding=new Padding(12)};dialog.Controls.Add(flow);var heading=new Label{AutoSize=true,MaximumSize=new Size(360,0),Font=new Font("Microsoft YaHei UI",10,FontStyle.Bold),Text=current.TaskTitle??"Autoloop 问题"};flow.Controls.Add(heading);var question=new Label{AutoSize=true,MaximumSize=new Size(360,0),Text=current.QuestionText??"请选择回答"};flow.Controls.Add(question);foreach(var option in current.Options){if(option==null||String.IsNullOrEmpty(option.Id))continue;var selected=option;var button=new Button{AutoSize=true,MaximumSize=new Size(360,0),Text=option.Label??option.Id,AccessibleName=option.Label??option.Id};button.Click+=(s,e)=>{dialog.Close();var handler=AnswerRequested;if(handler!=null)handler(current.QuestionId,selected.Id,current.CardFingerprint);};flow.Controls.Add(button);}dialog.ShowDialog(FindForm());}}
  }
 }

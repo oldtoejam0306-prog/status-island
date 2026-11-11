@@ -8,7 +8,7 @@ using Windows.Storage.Streams;
 
 namespace IslandMedia {
   public sealed class Snapshot {
-    public string Title="网易云音乐", Artist="", Album="", Detail="尚未读取系统媒体", SourceId="";
+    public string Title="网易云音乐", Artist="", Album="", Detail="尚未读取系统媒体", SourceId="", TrackId="";
     public byte[] Cover;
     public double? PositionSeconds,DurationSeconds;public DateTimeOffset? PositionTimestamp,PlaybackObservedAt;
     public bool CanToggle,CanPrevious,CanNext,Playing,CanSeek;public long ObservedTicks;
@@ -24,6 +24,7 @@ namespace IslandMedia {
     readonly CancellationTokenSource stopped=new CancellationTokenSource();
     public NeteaseSource() : this(null,null,null,null) {}
     public NeteaseSource(Func<DateTime> clock, Func<Task<Snapshot>> provider,Func<string,Task<bool>> controlProvider=null,Func<Task<byte[]>> artworkProvider=null,Func<double,Task<bool>> seekProvider=null) { this.clock=clock ?? (()=>DateTime.UtcNow); this.provider=provider;this.controlProvider=controlProvider;this.artworkProvider=artworkProvider;this.seekProvider=seekProvider;assets.Changed+=RaiseChanged; }
+    public void RequestFreshMetadata(){if(!disposed)metadataDirty=true;}
     public void Dispose() { if(disposed)return; disposed=true; stopped.Cancel();assets.Dispose();ResetNativeManager();StateChanged=null; }
     void ResetNativeManager(){BindSession(null);var old=manager;manager=null;if(old!=null){try{if(hasSessionsEvent)old.SessionsChanged-=SessionsChanged;}catch{}try{if(hasCurrentSessionEvent)old.CurrentSessionChanged-=CurrentSessionChangedHandler;}catch{}}hasSessionsEvent=hasCurrentSessionEvent=false;}
     void CurrentSessionChangedHandler(GlobalSystemMediaTransportControlsSessionManager sender,CurrentSessionChangedEventArgs args){SessionsChanged(sender,null);}
@@ -87,7 +88,7 @@ namespace IslandMedia {
         var props=cachedProperties;if(props==null||metadataDirty||(clock()>=fastUntil&&(clock()-propertiesAt).TotalSeconds>=5)){metadataDirty=false;props=await Await(current.TryGetMediaPropertiesAsync()).ConfigureAwait(false);cachedProperties=props;propertiesAt=clock();}
         if(disposed) return new Snapshot { Detail="媒体源已关闭" };
         result.Title=String.IsNullOrWhiteSpace(props.Title)?"网易云未提供歌名":props.Title;
-        result.Artist=props.Artist??"";result.Album=props.AlbumTitle??"";
+        result.Artist=props.Artist??"";result.Album=props.AlbumTitle??"";if(props.Genres!=null)foreach(var genre in props.Genres){var match=System.Text.RegularExpressions.Regex.Match(genre??"",@"^NCM-(\d{1,20})$");if(match.Success){result.TrackId=match.Groups[1].Value;break;}}
         var info=current.GetPlaybackInfo();result.ObservedTicks=System.Diagnostics.Stopwatch.GetTimestamp();result.PlaybackObservedAt=DateTimeOffset.UtcNow; var controls=info.Controls;
         result.Playing=info.PlaybackStatus==GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
         result.CanToggle=controls.IsPlayPauseToggleEnabled; result.CanPrevious=controls.IsPreviousEnabled; result.CanNext=controls.IsNextEnabled;result.CanSeek=controls.IsPlaybackPositionEnabled;

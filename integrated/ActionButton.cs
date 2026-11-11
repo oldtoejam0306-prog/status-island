@@ -5,9 +5,9 @@ using System.Windows.Forms;
 namespace IslandIntegrated {
   public static class ActionButtonSurface {
     public static void Draw(Graphics g,Rectangle bounds,string text,bool plus,bool enabled,bool pressed,bool focused){
-      g.SmoothingMode=SmoothingMode.AntiAlias;g.Clear(Palette.Base);
+      g.SmoothingMode=SmoothingMode.AntiAlias;if(!GlassComposition.Active)g.Clear(Palette.Base);
       var area=new RectangleF(bounds.X+.5f,bounds.Y+.5f,Math.Max(1,bounds.Width-1),Math.Max(1,bounds.Height-1));
-      using(var path=GlassSurface.Path(area,8))using(var fill=new SolidBrush(pressed?Palette.Top:Palette.Base))using(var border=new Pen(Color.FromArgb(70,Palette.Accent),1)){g.FillPath(fill,path);g.DrawPath(border,path);}
+      using(var path=GlassSurface.Path(area,8))using(var fill=new SolidBrush(GlassComposition.Active?Color.FromArgb(pressed?164:112,Palette.Top):(pressed?Palette.Top:Palette.Base)))using(var border=new Pen(Color.FromArgb(70,Palette.Accent),1)){g.FillPath(fill,path);g.DrawPath(border,path);}
       var color=enabled?Palette.Text:Color.FromArgb(123,135,153);
       if(plus){using(var pen=new Pen(color,1.8f)){float x=bounds.Left+bounds.Width/2f,y=bounds.Top+bounds.Height/2f;g.DrawLine(pen,x-5,y,x+5,y);g.DrawLine(pen,x,y-5,x,y+5);}}
       else using(var brush=new SolidBrush(color))using(var format=new StringFormat{Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center})g.DrawString(text,SystemFonts.MessageBoxFont,brush,bounds,format);

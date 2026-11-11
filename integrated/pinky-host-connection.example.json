@@ -1,0 +1,7 @@
+{
+  "schema": "pinky.sidebar-connection.v1",
+  "enabled": false,
+  "directory": "",
+  "pinkyExecutable": "",
+  "presentation": "owned-popup"
+}

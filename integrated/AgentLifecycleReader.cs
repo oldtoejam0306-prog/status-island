@@ -1,7 +1,7 @@
 using System;using System.IO;using System.Linq;using System.Diagnostics;using System.Globalization;using System.Collections.Generic;using System.Web.Script.Serialization;
 namespace SidebarAgentLifecycle {
  public sealed class Reader {
-  public static readonly string DefaultRoot=System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), @"StatusIsland\status-sources\agents");
+  public static string DefaultRoot{get{string app=Environment.GetEnvironmentVariable("STATUS_ISLAND_HOME");if(String.IsNullOrWhiteSpace(app))app=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"StatusIsland");string configured=Environment.GetEnvironmentVariable("SIDEBAR_AGENT_LIFECYCLE_HOME");return Path.GetFullPath(String.IsNullOrWhiteSpace(configured)?Path.Combine(app,"status-sources","agents"):configured);}}
   readonly string root;readonly Func<Receipt,bool?> check;readonly Dictionary<string,View> cache=new Dictionary<string,View>();readonly Dictionary<string,DateTimeOffset> cachedAt=new Dictionary<string,DateTimeOffset>();readonly HashSet<string> denied=new HashSet<string>();
   public Reader(string sourceRoot=null,Func<Receipt,bool?> verifier=null){root=sourceRoot??DefaultRoot;check=verifier??VerifyOwner;}
   static string Str(Dictionary<string,object>d,string k){object v;return d!=null&&d.TryGetValue(k,out v)?v as string:null;}

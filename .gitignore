@@ -17,8 +17,14 @@ Thumbs.db
 integrated/state/
 **/bin/
 **/obj/
+**/config.json
+**/pinky-start.json
+**/pinky-host-connection.json
+**/status-sources/
+**/logs/
 *.user
 *.pfx
 *.key
+*.pem
 .env
 .env.*

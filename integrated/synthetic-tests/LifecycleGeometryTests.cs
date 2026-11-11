@@ -43,7 +43,7 @@ class LifecycleGeometryTests {
    Check(hover.Open&&transitions==1,"Stationary edge stays open for sixty seconds");hover.Tick(60000,false,false,false);hover.Tick(60649,false,false,false);Check(hover.Open,"Exit delay retained");hover.Tick(60650,false,false,false);Check(!hover.Open,"Leaves after delay");
    hover=new HoverState();long boundary=(long)Int32.MaxValue-100;hover.Tick(boundary,true,false,false);hover.Tick(boundary+250,true,false,false);Check(hover.Open,"Monotonic hover works across signed TickCount boundary");
    hover.Pinned=true;for(long now=boundary+300;now<boundary+60300;now+=30)hover.Tick(now,false,false,false);Check(hover.Open,"Pinned open across refresh periods");hover.Tick(boundary+60300,false,false,true);Check(!hover.Open,"Fullscreen blocks pinned panel");
-   var first=new Rectangle(1500,100,332,106);var second=new Rectangle(1488,218,344,500);var screen=new Rectangle(0,0,1920,1080);
+   var first=new Rectangle(1500,100,332,106);var second=new Rectangle(1472,230,360,500);var screen=new Rectangle(0,0,1920,1080);
    Check(App.HoverContains(new Point(1600,212),first,second),"Status-to-card gap bridge");Check(App.EdgeBridgeContains(new Point(1890,250),screen,first,second),"Edge-to-card bridge");
    Check(!App.IsExternalEdge(new Point(1919,300),screen,new[]{new Rectangle(1920,0,1280,1080)}),"Internal monitor seam excluded");Check(App.IsExternalEdge(new Point(1919,300),screen,new Rectangle[0]),"External edge accepted");
    long before=PreviewClock.NowMs;Thread.SpinWait(1000);Check(PreviewClock.NowMs>=before&&before>=0,"Production monotonic clock nondecreasing");

@@ -3,22 +3,27 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 namespace IslandIntegrated {
  public static class Palette {
-  public static bool Legacy;public static bool Solid;
-  public static Color Base {get{return Legacy?Color.FromArgb(18,29,43):Color.FromArgb(56,59,62);}}
-  public static Color Top {get{return Legacy?Color.FromArgb(34,52,72):Color.FromArgb(70,73,77);}}
-  public static Color Text {get{return Color.FromArgb(241,245,250);}}
-  public static Color Secondary {get{return Legacy?Color.FromArgb(177,185,198):Color.FromArgb(193,200,210);}}
-  public static Color Accent {get{return Legacy?Color.FromArgb(107,229,160):Color.FromArgb(241,242,244);}}
-  public static Color SelectedText {get{return Color.FromArgb(31,32,34);}}
+  public static bool Legacy;public static bool Solid;public static string Theme="tide";
+  public static string ValidTheme(string value){return value=="pine"||value=="iris"||value=="amber"?value:"tide";}
+  static Color Pick(Color tide,Color pine,Color iris,Color amber){switch(ValidTheme(Theme)){case "pine":return pine;case "iris":return iris;case "amber":return amber;default:return tide;}}
+  public static Color Base {get{return Legacy?Color.FromArgb(18,29,43):Pick(Color.FromArgb(28,47,62),Color.FromArgb(25,53,44),Color.FromArgb(49,37,60),Color.FromArgb(55,43,35));}}
+  public static Color Top {get{return Legacy?Color.FromArgb(34,52,72):Pick(Color.FromArgb(48,74,92),Color.FromArgb(45,79,65),Color.FromArgb(73,57,88),Color.FromArgb(82,65,53));}}
+  public static Color Face {get{return Pick(Color.FromArgb(142,188,220),Color.FromArgb(139,199,162),Color.FromArgb(190,157,218),Color.FromArgb(214,179,131));}}
+  public static Color Text {get{return Pick(Color.FromArgb(238,245,247),Color.FromArgb(238,245,247),Color.FromArgb(244,238,249),Color.FromArgb(247,239,230));}}
+  public static Color Secondary {get{return Pick(Color.FromArgb(195,211,223),Color.FromArgb(195,216,207),Color.FromArgb(207,194,220),Color.FromArgb(219,201,182));}}
+  public static Color Accent {get{return Legacy?Color.FromArgb(107,229,160):Pick(Color.FromArgb(107,174,232),Color.FromArgb(106,187,154),Color.FromArgb(186,147,216),Color.FromArgb(213,165,117));}}
+  public static Color SelectedText {get{return Color.FromArgb(20,30,35);}}
+
  }
  public sealed class StatusHeightMotion {
   double from,target;long started;int duration;public double Value {get;private set;}
   public StatusHeightMotion(double initial){Value=from=target=initial;}
-  void Advance(long now){if(duration==0){Value=target;return;}double t=Math.Max(0,Math.Min(1,(now-started)/(double)duration));Value=from+(target-from)*(1-Math.Pow(1-t,3));if(t>=1){Value=target;duration=0;}}
-  public double Step(double goal,long now,bool reduced){Advance(now);if(reduced){Value=from=target=goal;duration=0;return Value;}if(goal!=target){from=Value;target=goal;started=now;duration=goal>Value?220:180;}return Value;}
+  public bool Moving {get{return duration>0;}}
+  void Advance(long now){if(duration==0){Value=target;return;}double t=Math.Max(0,Math.Min(1,(now-started)/(double)duration));double eased=target<from?t*t*(3-2*t):1-Math.Pow(1-t,3);Value=from+(target-from)*eased;if(t>=1){Value=target;duration=0;}}
+  public double Step(double goal,long now,bool reduced){Advance(now);if(reduced){Value=from=target=goal;duration=0;return Value;}if(goal!=target){from=Value;target=goal;started=now;duration=goal>Value?220:320;}return Value;}
  }
  public static class CornerLayout {
-  public const int Width=344,CompactHeight=74,Gap=12;
+  public const int Width=360,CompactHeight=80,Gap=24;
   public static Rectangle Body(Rectangle area,int height,int shadow,int scroll){
    int width=Math.Min(Width,Math.Max(1,area.Width-2*shadow));int inset=shadow+Math.Max(0,scroll);
    return new Rectangle(Math.Max(area.Left,area.Right-inset-width),area.Top+shadow,width,height);
@@ -29,7 +34,7 @@ namespace IslandIntegrated {
   public static Rectangle Column(Rectangle area,int shadow,int scroll){return Column(area,shadow,scroll,CompactHeight);}
   public static Rectangle Column(Rectangle area,int shadow,int scroll,int statusHeight){
    var bar=Body(area,Math.Min(Math.Max(0,statusHeight),MaximumStatusHeight(area,shadow)),shadow,scroll);
-   int top=bar.Bottom+(int)Math.Round(Gap*Math.Min(1,Math.Max(0,statusHeight)/74.0));
+   int top=bar.Bottom+(int)Math.Round(Gap*Math.Min(1,Math.Max(0,statusHeight)/(double)CompactHeight));
    return new Rectangle(bar.Left,top,bar.Width,Math.Max(1,area.Bottom-top-shadow));
   }
  }
@@ -68,11 +73,11 @@ namespace IslandIntegrated {
   public StatusFrameCache(int shadow){margin=shadow;}
   public bool MatchesSize(Size expected){return image!=null&&image.Size==expected;}
   public void Update(Bitmap source){var next=(Bitmap)source.Clone();if(image!=null)image.Dispose();image=next;BaseUpdates++;}
-  public Bitmap Compose(double phase,bool animated){if(image==null)return null;var next=(Bitmap)image.Clone();float height=image.Height-2*margin,frac=Math.Max(0,Math.Min(1,(height-74)/350f)),radius=Math.Min(height/2,37*(1-frac)+24*frac);if(animated)using(var g=Graphics.FromImage(next))GlassSurface.PaintShimmer(g,new RectangleF(margin,margin,image.Width-2*margin,height),radius,phase);Compositions++;return next;}
+  public Bitmap Compose(double phase,bool animated){if(image==null)return null;var next=(Bitmap)image.Clone();float height=image.Height-2*margin,radius=Math.Min(height/2,24);if(animated)using(var g=Graphics.FromImage(next))GlassSurface.PaintShimmer(g,new RectangleF(margin,margin,image.Width-2*margin,height),radius,phase);Compositions++;return next;}
   public Bitmap ComposePointer(PointerLight light){
    if(image==null)return null;
    if(composited==null||composited.Size!=image.Size){if(composited!=null)composited.Dispose();composited=new Bitmap(image.Width,image.Height);}
-   using(var g=Graphics.FromImage(composited)){g.CompositingMode=CompositingMode.SourceCopy;g.DrawImageUnscaled(image,0,0);g.CompositingMode=CompositingMode.SourceOver;float h=image.Height-2*margin,frac=Math.Max(0,Math.Min(1,(h-74)/350f)),radius=Math.Min(h/2,37*(1-frac)+24*frac);GlassSurface.PaintPointer(g,new RectangleF(margin,margin,image.Width-2*margin,h),radius,light);}
+   using(var g=Graphics.FromImage(composited)){g.CompositingMode=CompositingMode.SourceCopy;g.DrawImageUnscaled(image,0,0);g.CompositingMode=CompositingMode.SourceOver;float h=image.Height-2*margin,radius=Math.Min(h/2,24);GlassSurface.PaintPointer(g,new RectangleF(margin,margin,image.Width-2*margin,h),radius,light);}
    Compositions++;return composited; // Borrowed buffer; callers must NOT Dispose it.
   }
   public void Dispose(){if(image!=null){image.Dispose();image=null;}if(composited!=null){composited.Dispose();composited=null;}}

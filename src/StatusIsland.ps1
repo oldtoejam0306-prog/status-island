@@ -4,10 +4,10 @@ $ErrorActionPreference = 'SilentlyContinue'
 # ===== 可配置项（同目录 config.json 可覆盖，键名一致） =====
 $ConfigFile = Join-Path $PSScriptRoot 'config.json'
 $Cfg = [ordered]@{
-  macHost           = '100.64.0.1'                                  # Mac 的 Tailscale IP
+  macHost           = ''                                  # Mac 的 Tailscale IP
   socksPort         = 1080                                            # 本机 SOCKS5 端口
-  clashGroup        = '选择节点'                                       # Clash 中决定 ChatGPT 走向的 selector
-  clashMacProxyName = 'SG-Mac-SOCKS5'                                 # 该 selector 指向 Mac 隧道时的代理名
+  clashGroup        = ''                                       # Clash 中决定 ChatGPT 走向的 selector
+  clashMacProxyName = ''                                 # 该 selector 指向 Mac 隧道时的代理名
   tailscaleExe      = 'C:\Program Files\Tailscale\tailscale.exe'
   nvidiaSmi         = 'C:\Windows\System32\nvidia-smi.exe'
   dshPort           = 3081
@@ -71,6 +71,7 @@ function Invoke-Capture([string]$Exe, [string[]]$ArgList, [int]$TimeoutMs = 3000
 
 function Get-MacState {
   $x = [ordered]@{ known = $false; online = $false; lastSeen = $null; tsState = 'unknown' }
+  if ([string]::IsNullOrWhiteSpace($MacIp)) { $x.tsState = 'unconfigured'; return $x }
   if (-not (Test-Path $TailscaleExe)) { $x.tsState = 'missing'; return $x }
   $svc = Get-Service -Name 'Tailscale' -ErrorAction SilentlyContinue
   if ($null -eq $svc) { $x.tsState = 'missing'; return $x }
@@ -116,7 +117,11 @@ function Invoke-PipeGet([string]$PipePath, [string]$Path) {
   $client = New-Object System.IO.Pipes.NamedPipeClientStream($server, $pipeName, [System.IO.Pipes.PipeDirection]::InOut, [System.IO.Pipes.PipeOptions]::None)
   try {
     $client.Connect(1500)
-    $req = "GET $Path HTTP/1.1`r`nHost: localhost`r`nConnection: close`r`n`r`n"
+    $req = "GET $Path HTTP/1.1
+Host: localhost
+Connection: close
+
+"
     $bytes = [Text.Encoding]::UTF8.GetBytes($req)
     $client.Write($bytes, 0, $bytes.Length)
     $client.Flush()
@@ -152,6 +157,7 @@ function Invoke-PipeGet([string]$PipePath, [string]$Path) {
 }
 
 function Get-Route([string]$PipePath) {
+  if ([string]::IsNullOrWhiteSpace($ClashGroup)) { return [ordered]@{ ok = $false; name = '' } }
   $enc = [uri]::EscapeDataString($ClashGroup)
   $json = Invoke-PipeGet $PipePath ("/proxies/" + $enc)
   if ([string]::IsNullOrWhiteSpace($json)) { return [ordered]@{ ok = $false; name = '' } }
@@ -263,7 +269,7 @@ function Get-Snapshot {
   $mac = Get-MacState
   $port = Test-TcpPort $Cfg.socksPort 500
   $socks = $false
-  if ($port) { $socks = Test-SocksHttp 8 }
+  if ($port -and -not [string]::IsNullOrWhiteSpace($MacIp) -and -not [string]::IsNullOrWhiteSpace($ClashGroup)) { $socks = Test-SocksHttp 8 }
   $pipe = Get-ClashPipePath
   $route = Get-Route $pipe
   $sys = Get-SystemMetrics
@@ -315,7 +321,7 @@ if ($Worker) {
       }
       $port = Test-TcpPort $Cfg.socksPort 500
       $socks = $false
-      if ($port) { $socks = Test-SocksHttp 8 }
+      if ($port -and -not [string]::IsNullOrWhiteSpace($MacIp) -and -not [string]::IsNullOrWhiteSpace($ClashGroup)) { $socks = Test-SocksHttp 8 }
       $sys = Get-SystemMetrics
       $snap = [ordered]@{
         ts          = (Get-Date).ToString('o')
@@ -563,7 +569,7 @@ $form.Add_Paint({
         [System.Windows.Forms.TextRenderer]::DrawText($g, $txt, $F_Small, (New-Object System.Drawing.Point($cx2, $y2)), $cc)
         $cx2 = $cx2 + [System.Windows.Forms.TextRenderer]::MeasureText($txt, $F_Small).Width + 14
       }
-      
+
       $ncT = [string]$script:neteaseTitle
       if ($ncT) {
         if ($ncT.Length -gt 12) { $ncT = $ncT.Substring(0, 12) + '…' }
@@ -704,6 +710,7 @@ $menu = New-Object System.Windows.Forms.ContextMenuStrip
 $miRefresh = $menu.Items.Add('刷新')
 $miRefresh.Add_Click({ Start-Worker })
 $miTunnel = $menu.Items.Add('重连 Mac 隧道')
+$miTunnel.Enabled = -not [string]::IsNullOrWhiteSpace($Cfg.tunnelStartScript)
 $miTunnel.Add_Click({
     try {
       $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -759,7 +766,8 @@ $timer.Add_Tick({
     $wdText = '看门狗 ✗'
     if ($wdOk) { $wdText = '看门狗 ✓' }
 
-    if ($s.tsState -eq 'timeout') { $macV = 'Tailscale 无响应'; $macC = $C_Bad; $macOn = $false }
+    if ($s.tsState -eq 'unconfigured') { $macV = '未配置'; $macC = $C_Faint; $macOn = $false }
+    elseif ($s.tsState -eq 'timeout') { $macV = 'Tailscale 无响应'; $macC = $C_Bad; $macOn = $false }
     elseif ($s.tsState -eq 'Stopped' -or $s.tsState -eq 'missing') {
       $macV = 'Tailscale 已停止'
       if ($s.tsState -eq 'missing') { $macV = '未安装 Tailscale' }
@@ -785,7 +793,7 @@ $timer.Add_Tick({
 
     $route = ([string]$s.route) -replace '^[^\p{L}\p{N}]+', ''
     $viaMac = $false
-    if ($route -like ('*' + $Cfg.clashMacProxyName + '*')) { $viaMac = $true }
+    if (-not [string]::IsNullOrWhiteSpace($Cfg.clashMacProxyName) -and $route -like ('*' + $Cfg.clashMacProxyName + '*')) { $viaMac = $true }
     if (-not $s.routeOk) { $routeV = '未知'; $routeC = $C_Faint }
     elseif ($viaMac) { $routeV = '经 Mac'; $routeC = $C_Ok }
     elseif ($route -eq 'DIRECT') { $routeV = '直连'; $routeC = $C_Warn }

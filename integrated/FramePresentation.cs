@@ -21,6 +21,36 @@ namespace IslandIntegrated {
     static readonly Stopwatch watch=Stopwatch.StartNew();
     public static long NowMs {get{return watch.ElapsedMilliseconds;}}
   }
+  public sealed class AnimationTimerPrecision : IDisposable {
+    static readonly object gate = new object();
+    static int users;
+    static bool acquired, unavailable;
+    bool active, disposed;
+    [System.Runtime.InteropServices.DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint period);
+    [System.Runtime.InteropServices.DllImport("winmm.dll")] static extern uint timeEndPeriod(uint period);
+    public void SetActive(bool value) {
+      lock (gate) {
+        if (disposed && value) return;
+        if (active == value) return;
+        active = value;
+        if (value) {
+          if (users++ == 0 && !unavailable) {
+            acquired = timeBeginPeriod(1) == 0;
+            unavailable = !acquired;
+          }
+        } else if (--users == 0 && acquired) {
+          timeEndPeriod(1);
+          acquired = false;
+        }
+      }
+    }
+    public void Dispose() {
+      lock (gate) {
+        SetActive(false);
+        disposed = true;
+      }
+    }
+  }
   public sealed class RenderGate {
     bool busy,closed;
     public bool TryEnter(){if(busy||closed)return false;busy=true;return true;}

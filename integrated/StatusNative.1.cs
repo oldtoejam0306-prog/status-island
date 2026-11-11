@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
 public class GlassWin {
@@ -21,6 +21,9 @@ public class GlassWin {
   }
   [ThreadStatic] public static int LastPushError;
   public static bool Push(IntPtr hwnd, Bitmap bmp, Point loc) {
+    return Push(hwnd,bmp,loc,255);
+  }
+  public static bool Push(IntPtr hwnd, Bitmap bmp, Point loc, byte opacity) {
     LastPushError=0;
     IntPtr screenDc = GetDC(IntPtr.Zero);
     IntPtr memDc=IntPtr.Zero,hBmp=IntPtr.Zero,old=IntPtr.Zero;
@@ -34,7 +37,7 @@ public class GlassWin {
     SIZE size = new SIZE(); size.cx = bmp.Width; size.cy = bmp.Height;
     POINT src = new POINT(); src.x = 0; src.y = 0;
     POINT dst = new POINT(); dst.x = loc.X; dst.y = loc.Y;
-    BLENDFUNCTION bf = new BLENDFUNCTION(); bf.BlendOp = 0; bf.BlendFlags = 0; bf.SourceConstantAlpha = 255; bf.AlphaFormat = 1;
+    BLENDFUNCTION bf = new BLENDFUNCTION(); bf.BlendOp = 0; bf.BlendFlags = 0; bf.SourceConstantAlpha = opacity; bf.AlphaFormat = 1;
     bool ok=UpdateLayeredWindow(hwnd, screenDc, ref dst, ref size, memDc, ref src, 0, ref bf, 2);
     if(!ok)LastPushError=Marshal.GetLastWin32Error();
     return ok;

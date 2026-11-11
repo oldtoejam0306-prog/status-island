@@ -42,20 +42,22 @@ namespace IslandIntegrated {
         using(var b=new LinearGradientBrush(new PointF(0,r.Top),new PointF(0,r.Bottom),Color.FromArgb(65,232,245,255),Color.FromArgb(18,209,231,249)))using(var pen=new Pen(b,.8f))g.DrawPath(pen,body);
       }g.Restore(saved);
     }
+    public static Bitmap CardBackground(Size size) {
+      var image=new Bitmap(Math.Max(1,size.Width),Math.Max(1,size.Height));
+      using(var g=Graphics.FromImage(image)) {
+        g.Clear(Color.Transparent);
+        Paint(g,new RectangleF(0,0,size.Width,size.Height),24,false);
+      }
+      return image;
+    }
     public static void Paint(Graphics g,RectangleF r,float radius,bool opaqueBacking){
-      if(Palette.Legacy){LegacyPaint(g,r,radius,true);return;}if(r.Width<2||r.Height<2)return;
-      if(Palette.Solid||System.Windows.Forms.SystemInformation.HighContrast){using(var path=Path(r,radius))using(var brush=new SolidBrush(Palette.Base))g.FillPath(brush,path);return;}
-      var state=g.Save();g.SmoothingMode=SmoothingMode.AntiAlias;
-      using(var path=Path(r,radius)){
-        if(opaqueBacking)using(var b=new SolidBrush(Palette.Base))g.FillPath(b,path);
-        bool high=System.Windows.Forms.SystemInformation.HighContrast;
-        var lower=Color.FromArgb((int)(Palette.Base.R*.66),(int)(Palette.Base.G*.66),(int)(Palette.Base.B*.66));using(var b=new LinearGradientBrush(r,Color.FromArgb(255,Palette.Top),Color.FromArgb(255,lower),LinearGradientMode.Vertical))g.FillPath(b,path);
-        g.SetClip(path,CombineMode.Intersect);
-        float sheen=Math.Min(96,r.Height*.62f);using(var b=new LinearGradientBrush(new RectangleF(r.X,r.Y,r.Width,Math.Max(1,sheen)),Color.FromArgb(24,255,255,255),Color.Transparent,LinearGradientMode.Vertical)){b.WrapMode=WrapMode.TileFlipXY;g.FillRectangle(b,r.X,r.Y,r.Width,sheen);}
-        Glow(g,r.X-r.Width*.17f,r.Y-r.Height*.32f,r.Width*.74f,r.Height*.68f,Color.FromArgb(10,255,255,255));
-        g.Restore(state);state=g.Save();g.SmoothingMode=SmoothingMode.AntiAlias;
-        using(var edge=new LinearGradientBrush(r,Color.FromArgb(88,255,255,255),Color.FromArgb(22,255,255,255),LinearGradientMode.Vertical))using(var pen=new Pen(edge,.75f))g.DrawPath(pen,path);
-      }g.Restore(state);
+      if(r.Width<2||r.Height<2)return;
+      if(Palette.Legacy){LegacyPaint(g,r,radius,opaqueBacking);return;}
+      if(Palette.Solid||System.Windows.Forms.SystemInformation.HighContrast){
+        using(var path=Path(r,radius))using(var brush=new SolidBrush(Palette.Base))g.FillPath(brush,path);
+        return;
+      }
+      StatusMaterial.Paint(g,r,radius,false);
     }
     public static Rectangle PointerBounds(Rectangle bounds,PointerLight light){if(light.Alpha<=0)return Rectangle.Empty;return Rectangle.Intersect(bounds,new Rectangle((int)light.X-164,(int)light.Y-114,328,228));}
     public static void PaintPointer(Graphics g,RectangleF r,float radius,PointerLight light){

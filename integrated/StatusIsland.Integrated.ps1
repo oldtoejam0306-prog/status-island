@@ -1,6 +1,11 @@
-# Non-sensitive in-process local metrics. No legacy worker, account access or network controls.
+﻿# Non-sensitive in-process local metrics. No legacy worker, account access or network controls.
 $ErrorActionPreference = 'Stop'
-$Root = Join-Path $PSScriptRoot 'state'
+$Root = $env:STATUS_ISLAND_HOME
+if ([string]::IsNullOrWhiteSpace($Root)) { $Root = Join-Path $env:LOCALAPPDATA 'StatusIsland' }
+$Root = [IO.Path]::GetFullPath($Root)
+$env:STATUS_ISLAND_HOME = $Root
+$BuildRoot = Join-Path $PSScriptRoot 'state\build'
+$script:releaseCandidate = Split-Path -Leaf $PSScriptRoot
 New-Item -ItemType Directory -Force -Path $Root | Out-Null
 $Cfg = @{ codexProcess='ChatGPT'; claudeProcess='claude'; codexLaunch=''; claudeLaunch=''; routePrimary=''; routeBackup1=''; routeBackup2='' }
 function Write-Log([string]$m) { }
@@ -22,7 +27,7 @@ Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
 
 # 分层窗口：逐像素透明，玻璃半透明和柔和外阴影都靠它
-Add-Type -Path (Join-Path $PSScriptRoot 'state\build\StatusNative.dll') -ReferencedAssemblies System.Drawing
+Add-Type -Path (Join-Path $BuildRoot 'StatusNative.dll') -ReferencedAssemblies System.Drawing
 
 # 激活/前置其他应用窗口（后台进程直接 SetForegroundWindow 会被系统限制，用 AttachThreadInput 绕过）
 # Native helper types loaded from the fingerprint-checked build.
@@ -78,25 +83,32 @@ function Open-AgentApp([string]$which) {
 }
 
 $M     = 16                 # 阴影边距（窗口比面板大一圈）
-$W_E   = 344; $H_E = 424    # 展开尺寸
-$W_C   = 344; $H_C = 74     # 胶囊尺寸（两行）
-$PadX  = 20
+$W_E   = 360; $H_E = 424    # 展开尺寸
+$W_C   = 360; $H_C = 80     # 胶囊尺寸（两行）
+$PadX  = 24
 $RowHiY = 132; $RowHiH = 26 # 出口线路行高亮/命中区（面板坐标，第 4 行）
 $RowHitTop = 310; $RowHitBot = 328
 
-$F_Title = New-Object System.Drawing.Font('Microsoft YaHei UI', 11.2, [System.Drawing.FontStyle]::Bold)
-$F_Name  = New-Object System.Drawing.Font('Microsoft YaHei UI', 9.6, [System.Drawing.FontStyle]::Bold)
-$F_Sub   = New-Object System.Drawing.Font('Microsoft YaHei UI', 8.4, [System.Drawing.FontStyle]::Regular)
-$F_Row   = New-Object System.Drawing.Font('Microsoft YaHei UI', 9.2, [System.Drawing.FontStyle]::Regular)
-$F_Val   = New-Object System.Drawing.Font('Microsoft YaHei UI', 9.2, [System.Drawing.FontStyle]::Bold)
-$F_Small = New-Object System.Drawing.Font('Microsoft YaHei UI', 8.8, [System.Drawing.FontStyle]::Regular)
-$F_Pill  = New-Object System.Drawing.Font('Microsoft YaHei UI', 8.4, [System.Drawing.FontStyle]::Bold)
-$F_Page  = New-Object System.Drawing.Font('Microsoft YaHei UI', 9.4, [System.Drawing.FontStyle]::Regular)
-$F_Tiny  = New-Object System.Drawing.Font('Microsoft YaHei UI', 7.8, [System.Drawing.FontStyle]::Regular)
+$F_Title = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]16, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+$F_Name  = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]16, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+$F_Sub   = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]12, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+$F_Row   = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]14, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+$F_Val   = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]14, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+$F_Small = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]12, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+$F_Pill  = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]12, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+$F_Page  = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]14, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+$F_Tiny  = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]12, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
 
-Add-Type -Path (Join-Path $PSScriptRoot 'state\build\NeteaseMedia.dll')
-Add-Type -Path (Join-Path $PSScriptRoot 'state\build\Controller.Check.dll')
+Add-Type -Path (Join-Path $BuildRoot 'NeteaseMedia.dll')
+Add-Type -Path (Join-Path $BuildRoot 'Controller.Check.dll')
 [void][GlassWin]::SetProcessDPIAware()
+$script:ccLauncher=[IslandIntegrated.CcSwitchLauncher]::CreateDefault('')
+$script:ccConfigured=''
+try {$ccConfigFile=Join-Path $Root 'config.json';if([IO.File]::Exists($ccConfigFile) -and (Get-Item -LiteralPath $ccConfigFile).Length -le 65536){$ccConfig=[IO.File]::ReadAllText($ccConfigFile)|ConvertFrom-Json;if($ccConfig.ccSwitchLaunch -is [string]){$script:ccConfigured=[string]$ccConfig.ccSwitchLaunch}}}catch{}
+function Invoke-CcSwitch {
+  if(-not [IslandIntegrated.StatusUiRenderer]::CcSwitchAvailable){$script:statusToolTip.Show($script:ccStatusText,$form,2500);return}
+  try{$message='';$result=$script:ccLauncher.Click($script:ccConfigured,[ref]$message);if($result -eq [IslandIntegrated.CcSwitchClickResult]::Failed){$script:statusToolTip.Show('CC Switch 无法聚焦或启动，请检查程序窗口与配置',$form,3500)}else{$script:statusToolTip.Show('CC Switch 正在打开或已聚焦',$form,1600)}}catch{$script:statusToolTip.Show('CC Switch 启动失败，请检查配置',$form,3500)}
+}
 $form = New-Object IslandIntegrated.NoActivateForm
 $form.PerPixelLayered = $true
 $script:surfaceReplayRequested=$false
@@ -166,12 +178,12 @@ function Get-BarColor([double]$pct) {
 
 # 服务卡片（Codex / Claude）位置：绘制与命中检测共用
 $TileH = 80
-function Get-TileRect([int]$i){$r=[IslandIntegrated.StatusUiLayout]::Service($i,[int]$script:size.w);return @{x=$r.X;y=$r.Y;w=$r.Width;h=$r.Height}}
+function Get-TileRect([int]$i){return [IslandIntegrated.StatusUiLayout]::Service($i,[int]$script:size.w)}
 
 function Get-TileHit([int]$cx, [int]$cy) {
   for ($i = 0; $i -lt 2; $i++) {
     $r = Get-TileRect $i
-    if ($cx -ge $r.x -and $cx -le ($r.x + $r.w) -and $cy -ge $r.y -and $cy -le ($r.y + $r.h)) { return $i }
+    if ($r.Contains([Drawing.Point]::new($cx,$cy))) { return $i }
   }
   return -1
 }
@@ -254,6 +266,25 @@ function Draw-IconClaude($g, [double]$x, [double]$y, [double]$s, [System.Drawing
       [single]($cx + [math]::Cos($rad) * $r2), [single]($cy + [math]::Sin($rad) * $r2))
   }
   $pen.Dispose()
+}
+
+$script:agentIconCache = @{}
+function Get-AgentIconRaster([int]$index, [int]$size, [Drawing.Color]$color, [double]$scale) {
+  $key = '{0}|{1}|{2}|{3}' -f $index,$size,$color.ToArgb(),$scale
+  if ($script:agentIconCache.ContainsKey($key)) { return ,$script:agentIconCache[$key] }
+  if ($script:agentIconCache.Count -ge 32) {
+    foreach ($image in $script:agentIconCache.Values) { $image.Dispose() }
+    $script:agentIconCache.Clear()
+  }
+  $image = [Drawing.Bitmap]::new($size+2,$size+2)
+  $graphics = [Drawing.Graphics]::FromImage($image)
+  try {
+    $graphics.Clear([Drawing.Color]::Transparent)
+    if ($index -eq 0) { Draw-IconCodex $graphics 1 1 $size $color $scale }
+    else { Draw-IconClaude $graphics 1 1 $size $color $scale }
+  } catch { $image.Dispose(); throw } finally { $graphics.Dispose() }
+  $script:agentIconCache[$key] = $image
+  return ,$image
 }
 
 $script:view = @{
@@ -375,10 +406,14 @@ function Toggle-StatusDock {
 function New-StatusRaster([int]$pw,[int]$ph){
   if($script:dock.HandleMode($ph)){return ,([IslandIntegrated.StatusDockState]::HandleRaster($M,$form.DeviceDpi,$script:dockHover))}
   $data=$controller.Legacy
+  [IslandIntegrated.StatusSignal]::ReduceMotion=$controller.ReducedMotion
   $phase=if($script:ticker.flipping){[double]$script:ticker.progress}else{0.0}
+  $iconMeasure=[Diagnostics.Stopwatch]::StartNew()
   $bmp=[IslandIntegrated.StatusUiRenderer]::RenderLive($pw,$ph,$M,$data,[int]$script:ticker.sysIdx,$phase)
+  [IslandIntegrated.TransitionMetrics]::Record('raster-base',$iconMeasure.Elapsed.TotalMilliseconds);$iconMeasure.Restart()
   $g=[Drawing.Graphics]::FromImage($bmp)
-  try{$g.TranslateTransform($M,$M);$fresh=$data.IsFresh([DateTimeOffset]::UtcNow);for($i=0;$i-lt 2;$i++){$icon=[IslandIntegrated.StatusUiLayout]::ServiceIcon($i,$pw,$ph);$known=if($i-eq 0){$data.CodexKnown}else{$data.ClaudeKnown};$present=if($i-eq 0){$data.CodexRun}else{$data.ClaudeUp};$color=if($fresh-and $known-and $present){if($i-eq 0){$C_Codex}else{$C_Claude}}else{[IslandIntegrated.Palette]::Secondary};$scale=if($fresh-and $known-and $present){1.0}else{0.45};if([IslandIntegrated.StatusUiRenderer]::DesktopAgentWorking($data,$i,[DateTimeOffset]::UtcNow)){$wave=if($controller.ReducedMotion){0.0}else{[math]::Sin($script:pulse)};$halo=$icon.Width*(2.0+0.35*$wave);Draw-Glow $g ($icon.X+($icon.Width-$halo)/2) ($icon.Y+($icon.Height-$halo)/2) $halo $halo ([Drawing.Color]::FromArgb(135,$color.R,$color.G,$color.B))};if($i-eq 0){Draw-IconCodex $g $icon.X $icon.Y $icon.Width $color $scale}else{Draw-IconClaude $g $icon.X $icon.Y $icon.Width $color $scale}}}catch{$bmp.Dispose();throw}finally{$g.Dispose()}
+  try{$g.TranslateTransform($M,$M);$fresh=$data.IsFresh([DateTimeOffset]::UtcNow);for($i=0;$i-lt 2;$i++){$icon=[IslandIntegrated.StatusUiLayout]::ServiceIcon($i,$pw,$ph);$known=if($i-eq 0){$data.CodexKnown}else{$data.ClaudeKnown};$present=if($i-eq 0){$data.CodexRun}else{$data.ClaudeUp};$color=if($fresh-and $known-and $present){if($i-eq 0){$C_Codex}else{$C_Claude}}else{[IslandIntegrated.Palette]::Secondary};$scale=if($fresh-and $known-and $present){1.0}else{0.45};if([IslandIntegrated.StatusUiRenderer]::DesktopAgentWorking($data,$i,[DateTimeOffset]::UtcNow)){$wave=if($controller.ReducedMotion){0.0}else{[math]::Sin($script:pulse)};$halo=$icon.Width*(2.0+0.35*$wave);Draw-Glow $g ($icon.X+($icon.Width-$halo)/2) ($icon.Y+($icon.Height-$halo)/2) $halo $halo ([Drawing.Color]::FromArgb(135,$color.R,$color.G,$color.B))};$iconRaster=Get-AgentIconRaster $i $icon.Width $color $scale;$g.DrawImageUnscaled($iconRaster,$icon.X-1,$icon.Y-1)}}catch{$bmp.Dispose();throw}finally{$g.Dispose()}
+  [IslandIntegrated.TransitionMetrics]::Record('raster-icons',$iconMeasure.Elapsed.TotalMilliseconds)
   return ,$bmp
 }
 
@@ -410,8 +445,8 @@ function Get-CurrentRouteName { $n=$controller.Legacy.Network;if($n.Fresh([DateT
 
 function Get-PickerRect {
   # 卡片挂在「出口线路」行（第 4 行）下方，横向铺满面板内边距
-  $w = $W_E - 24
-  return @{ x = 12; y = 161; w = $w; h = 88; pad = 5; itemH = 26; ix = 16; iw = ($w - 14) }
+  $w = $W_E - 2*$PadX
+  return @{ x = $PadX; y = 161; w = $w; h = 88; pad = 5; itemH = 26; ix = ($PadX+4); iw = ($w - 8) }
 }
 
 function Get-PickerHit([int]$cx, [int]$cy) {
@@ -448,6 +483,7 @@ $onDown = {
 $onMove = {
   param($sender, $e)
   $hint=if($script:dock.HandleMode([int]$script:size.h)){[string][char]0x5c55+[char]0x5f00+[char]0x72b6+[char]0x6001+[char]0x53f0}else{[IslandIntegrated.StatusHints]::At([Drawing.Point]::new($e.X-$M,$e.Y-$M),[int]$script:size.w,([int]$script:size.h-lt 232),$controller.Legacy)}
+  if([IslandIntegrated.StatusUiLayout]::CcSwitchButton([int]$script:size.w,([int]$script:size.h -lt 232)).Contains([Drawing.Point]::new($e.X-$M,$e.Y-$M))){$hint=$script:ccStatusText}
   if($hint-ne $script:lastHint){$script:lastHint=$hint;$script:statusToolTip.SetToolTip($form,$hint);$form.AccessibleDescription=$hint}
   if($script:dock.HandleMode([int]$script:size.h)){$form.Cursor=[Windows.Forms.Cursors]::Hand;return}
   if (-not $script:dragging) {
@@ -470,7 +506,7 @@ $onMove = {
     $tileHit = -1
     if ($expanded -and -not $script:picker.open) { $tileHit = Get-TileHit $cardX $panelY }
     if ($tileHit -ne $script:tileHover) { $script:tileHover = $tileHit; $script:statusDirty=$true }
-    $hand = $inRow -or [bool]$peonHit -or ($tileHit -ge 0)
+    $hand = $inRow -or [bool]$peonHit -or ($tileHit -ge 0) -or [IslandIntegrated.StatusUiLayout]::CcSwitchButton([int]$script:size.w,([int]$script:size.h -lt 232)).Contains([Drawing.Point]::new($cardX,$panelY)) -or ([int]$script:size.h -ge 232 -and [IslandIntegrated.StatusUiLayout]::ThemeButton([int]$script:size.w).Contains([Drawing.Point]::new($cardX,$panelY)))
     if ($hit -ge 0) { $hand = [bool]$script:picker.items[$hit].proxy }
     $want = [System.Windows.Forms.Cursors]::Default
     if ($hand) { $want = [System.Windows.Forms.Cursors]::Hand }
@@ -488,6 +524,9 @@ $onUp = {
   if ($e.Button -ne [System.Windows.Forms.MouseButtons]::Left) { return }
   if($script:dock.HandleMode([int]$script:size.h)){if([Drawing.Rectangle]::new([Drawing.Point]::Empty,[IslandIntegrated.StatusDockState]::HandleSize($form.DeviceDpi)).Contains([Drawing.Point]::new($e.X-$M,$e.Y-$M))){Toggle-StatusDock};return}
   if([IslandIntegrated.StatusDockState]::CollapseButton([int]$script:size.w).Contains([Drawing.Point]::new($e.X-$M,$e.Y-$M))){Toggle-StatusDock;return}
+  $surfacePoint=[Drawing.Point]::new($e.X-$M,$e.Y-$M)
+  if([IslandIntegrated.StatusUiLayout]::CcSwitchButton([int]$script:size.w,([int]$script:size.h -lt 232)).Contains($surfacePoint)){Invoke-CcSwitch;return}
+  if([int]$script:size.h -ge 232 -and [IslandIntegrated.StatusUiLayout]::ThemeButton([int]$script:size.w).Contains($surfacePoint)){$controller.ShowThemePicker($form,[Drawing.Point]::new($e.X,$e.Y));return}
   if ([int]$script:size.h -le 120) { return }
   $panelY = [int]$e.Y - $M
   $cardX = [int]$e.X - $M
@@ -533,6 +572,7 @@ $menu = New-Object System.Windows.Forms.ContextMenuStrip
 $dockItem=$menu.Items.Add([string][char]0x6536+[char]0x8D77+[char]0x72B6+[char]0x6001+[char]0x53F0)
 $dockItem.Add_Click({Toggle-StatusDock})
 $menu.Add_Opening({$dockItem.Text=if($script:dock.Hidden){[string][char]0x6062+[char]0x590D+[char]0x72B6+[char]0x6001+[char]0x53F0}else{[string][char]0x6536+[char]0x8D77+[char]0x72B6+[char]0x6001+[char]0x53F0}})
+$themeAction=$menu.Items.Add('切换主题');$themeAction.Add_Click({$controller.ShowThemePicker($form,[Drawing.Point]::new(30,30))})
 $routeInfo=$menu.Items.Add('网络与线路（只读）');$routeInfo.ToolTipText='查看状态和线路预览，不会切换网络';$routeInfo.Add_Click({$controller.ShowNetworkDetails()})
 $exitItem = $menu.Items.Add('退出集成预览')
 $exitItem.Add_Click({ $form.Close() })
@@ -553,8 +593,11 @@ foreach ($metric in $script:view.metrics) { $metric.v = '—'; $metric.pct = 0 }
 $controller = New-Object IslandIntegrated.App (Join-Path $Root 'layout.xml'), $form
 $controller.StatusShadowMargin=$M
 $script:lastLegacyStamp=''
+$script:ccChecked=[DateTime]::MinValue; $script:ccStatusText='正在检查 CC Switch'; $script:ccTask=$null
 $script:lastWebsiteLabel=''
 $timer.Add_Tick({
+  if($script:ccTask -and $script:ccTask.IsCompleted){try{$ccStatus=$script:ccTask.GetAwaiter().GetResult();$available=$ccStatus.State -eq [IslandIntegrated.CcSwitchState]::Running -or $ccStatus.State -eq [IslandIntegrated.CcSwitchState]::Available;if([IslandIntegrated.StatusUiRenderer]::CcSwitchAvailable -ne $available){[IslandIntegrated.StatusUiRenderer]::CcSwitchAvailable=$available;$script:statusDirty=$true};$script:ccStatusText=if($available){'启动或切换到 CC Switch'}else{'未检测到 CC Switch'}}catch{[IslandIntegrated.StatusUiRenderer]::CcSwitchAvailable=$false;$script:ccStatusText='CC Switch 状态不可用'}finally{$script:ccTask=$null}}
+  if($form.Visible -and -not $script:ccTask -and (([DateTime]::UtcNow-$script:ccChecked).TotalSeconds -ge 30)){$script:ccChecked=[DateTime]::UtcNow;$script:ccTask=$script:ccLauncher.GetStatusAsync($script:ccConfigured)}
   if($form.Visible){[void][IslandIntegrated.WebsiteLatency]::StartIfDue()};$websiteLabel=[IslandIntegrated.WebsiteLatency]::Label([DateTimeOffset]::UtcNow);if($websiteLabel-ne $script:lastWebsiteLabel){$script:lastWebsiteLabel=$websiteLabel;$script:statusDirty=$true}
   $data=$controller.Legacy
   $fresh=$data.IsFresh([DateTimeOffset]::UtcNow)
@@ -577,12 +620,17 @@ $timer.Add_Tick({
 })
 $script:tickerHold = 0
 $script:frame = 0
+$script:lastAnimationTick = [IslandIntegrated.PreviewClock]::NowMs
+$script:lastPulseFrameAt = 0
 $anim = New-Object System.Windows.Forms.Timer
 $anim.Interval = 30
 $anim.Add_Tick({
     if($script:renderGate.Closed){return}
     [IslandIntegrated.TransitionMetrics]::MarkTick("status",[IslandIntegrated.PreviewClock]::NowMs)
     $submittedThisTick=$false
+    $animationNow=[IslandIntegrated.PreviewClock]::NowMs
+    $animationDelta=[math]::Min(100,[math]::Max(0,$animationNow-$script:lastAnimationTick))
+    $script:lastAnimationTick=$animationNow
     if($controller.EdgeRevealRequested){$controller.EdgeRevealRequested=$false;if($script:dock.Hidden){Toggle-StatusDock};$script:edgeGroup=$true}
     $cp=[System.Windows.Forms.Cursor]::Position
     $hs=[IslandIntegrated.StatusDockState]::HandleSize($form.DeviceDpi);$hb=[Drawing.Rectangle]::new($script:pendingBounds.Left+$M,$script:pendingBounds.Top+$M,$hs.Width,$hs.Height);if($script:dockLight.Step(($script:dock.HandleMode([int]$script:size.h)-and $hb.Contains($cp)),[IslandIntegrated.PreviewClock]::NowMs,$controller.ReducedMotion)){$script:dockHover=$script:dockLight.Amount;$script:statusDirty=$true}
@@ -591,11 +639,12 @@ $anim.Add_Tick({
     $wasMode=$script:mode
     if(-not $controller.Expanded){$script:edgeGroup=$false}
     $script:mode=if($script:statusHover.Tick([IslandIntegrated.PreviewClock]::NowMs,$cp,$body,$blocked)){'expanded'}else{'compact'}
-    if(($controller.NetworkDropdownVisible -or ($script:edgeGroup -and $controller.Expanded)) -and -not $controller.Suppressed -and -not $controller.FullscreenBlocked){$script:mode='expanded'}
+    if(($controller.NetworkDropdownVisible -or $controller.ThemePickerVisible -or ($script:edgeGroup -and $controller.Expanded)) -and -not $controller.Suppressed -and -not $controller.FullscreenBlocked){$script:mode='expanded'}
     if($script:mode-ne $wasMode){
       $script:statusDirty=$true
-      try{$record=@{schema=1;candidate='sidebar-merged-ready-20261106';mode=$script:mode;utc=[DateTime]::UtcNow.ToString('o');cursor=@{x=$cp.X;y=$cp.Y};body=@{x=$body.X;y=$body.Y;width=$body.Width;height=$body.Height};frames=$script:statusFrameCount};[IO.File]::WriteAllText((Join-Path $Root 'logs/status-hover-latest.json'),($record|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))}catch{}
+      try{$record=@{schema=1;candidate=$script:releaseCandidate;mode=$script:mode;utc=[DateTime]::UtcNow.ToString('o');cursor=@{x=$cp.X;y=$cp.Y};body=@{x=$body.X;y=$body.Y;width=$body.Width;height=$body.Height};frames=$script:statusFrameCount};[IO.File]::WriteAllText((Join-Path $Root 'logs/status-hover-latest.json'),($record|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))}catch{}
     }
+    if($controller.PinkyPanelRequested){$script:mode='compact'}
     $tgtW = $W_C; $tgtH = $H_C
     if ($script:mode -eq 'expanded') { $tgtW = $W_E; $tgtH = [math]::Min($H_E,$controller.MaximumStatusBodyHeight) }
     if($script:dock.Hidden){$tgtH=0}
@@ -603,6 +652,8 @@ $anim.Add_Tick({
     $previousHeight=[int]$script:size.h
     $script:size.h=$script:heightMotion.Step($tgtH,[IslandIntegrated.PreviewClock]::NowMs,$controller.ReducedMotion)
     $changed=($previousHeight-ne [int]$script:size.h)
+    $anim.Interval=if($script:heightMotion.Moving -or $controller.RevealAnimating){15}else{30}
+    $controller.SetStatusAnimationActive($script:heightMotion.Moving -or $controller.RevealAnimating)
     if ($changed) {
       [IslandIntegrated.TransitionMetrics]::MarkTick("status-transition",[IslandIntegrated.PreviewClock]::NowMs)
       [void](Set-Geometry)
@@ -611,9 +662,9 @@ $anim.Add_Tick({
 
     # 翻页动画
     $tk = $script:ticker
-    $script:tickerHold += 30
+    $script:tickerHold += $animationDelta
     if ($tk.flipping) {
-      $tk.progress = if($controller.ReducedMotion){1.0}else{$tk.progress+0.09}
+      $tk.progress = if($controller.ReducedMotion){1.0}else{$tk.progress+0.09*$animationDelta/30.0}
       if ($tk.progress -ge 1.0) {
         $tk.progress = 0.0
         $tk.flipping = $false
@@ -630,11 +681,13 @@ $script:tickerHold = 0
     }
 
     # 呼吸：展开态且有人在忙时，让光斑/忙碌点轻微起伏（8fps，够用且省 CPU）
-    $script:pulse += 0.10
+    $script:pulse += 0.07854*$animationDelta/30.0
     if ($script:pulse -gt 6.28) { $script:pulse -= 6.28 }
     $script:frame++
-    if ($form.Visible -and -not $controller.ReducedMotion -and ($script:frame % 4) -eq 0) {
-      $anyBusy = $script:picker.open
+    if ($form.Visible -and -not $controller.ReducedMotion -and ($animationNow-$script:lastPulseFrameAt) -ge 120) {
+      $script:lastPulseFrameAt=$animationNow
+      $signal=[IslandIntegrated.StatusSignal]::From($controller.Legacy)
+      $anyBusy = $script:picker.open -or $signal.Kind -eq "warning" -or $signal.Kind -eq "error"
       for($i=0;$i-lt 2;$i++){if([IslandIntegrated.StatusUiRenderer]::DesktopAgentWorking($controller.Legacy,$i,[DateTimeOffset]::UtcNow)){$anyBusy=$true}}
       if ($anyBusy) { $script:statusDirty=$true }
     }
@@ -678,6 +731,7 @@ $script:tickerHold = 0
       $geometryChanged=$true
     }
     if($geometryChanged){$script:statusDirty=$true}
+    if($script:lastTheme-ne [IslandIntegrated.Palette]::Theme){$script:lastTheme=[IslandIntegrated.Palette]::Theme;$script:statusDirty=$true}
     if($script:lastPalette-ne [IslandIntegrated.Palette]::Legacy){$script:lastPalette=[IslandIntegrated.Palette]::Legacy;$script:statusDirty=$true}
     [IslandIntegrated.TransitionMetrics]::FlushIfDue([IslandIntegrated.PreviewClock]::NowMs)
     # UpdateLayeredWindow does not depend on a normal WM_PAINT cycle. Commit once per changed tick.
@@ -701,7 +755,7 @@ $form.Add_Shown({
     # Layered style and initial geometry are already applied before the first Show.
     try {
       $elapsed=if($global:SidebarStartupWatch){$global:SidebarStartupWatch.ElapsedMilliseconds}else{$null}
-      $first=@{schema=1;phase='shown';firstPixelsCommitted=$script:firstFrameGate.CanShow;candidate='sidebar-merged-ready-20261106';elapsedFromEntryMs=$elapsed;bounds=@{left=$form.Left;top=$form.Top;width=$form.Width;height=$form.Height};startPosition=[string]$form.StartPosition;utc=[DateTime]::UtcNow.ToString('o')}
+      $first=@{schema=1;phase='shown';firstPixelsCommitted=$script:firstFrameGate.CanShow;candidate=$script:releaseCandidate;elapsedFromEntryMs=$elapsed;bounds=@{left=$form.Left;top=$form.Top;width=$form.Width;height=$form.Height};startPosition=[string]$form.StartPosition;utc=[DateTime]::UtcNow.ToString('o')}
       [IO.File]::WriteAllText((Join-Path $Root 'logs\startup-first-shown.json'),($first|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))
     } catch {}
     $script:statusDirty=$true
@@ -723,13 +777,15 @@ $script:firstFrameGate.ControlsPrepared()
 $firstCommitted = Submit-StatusFrame
 $script:firstFrameGate.PixelsCommitted($script:pendingBounds.Size, $firstCommitted)
 $script:firstFrameGate.RequireReady()
-[IO.File]::WriteAllText((Join-Path $Root 'logs\startup-first-pixels.json'),(@{schema=1;candidate='sidebar-merged-ready-20261106';phase='pixels-before-show';elapsedFromEntryMs=$global:SidebarStartupWatch.ElapsedMilliseconds;committed=$firstCommitted;left=$script:pendingBounds.Left;top=$script:pendingBounds.Top;width=$script:pendingBounds.Width;height=$script:pendingBounds.Height;utc=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $Root 'logs\startup-first-pixels.json'),(@{schema=1;candidate=$script:releaseCandidate;phase='pixels-before-show';elapsedFromEntryMs=$global:SidebarStartupWatch.ElapsedMilliseconds;committed=$firstCommitted;left=$script:pendingBounds.Left;top=$script:pendingBounds.Top;width=$script:pendingBounds.Width;height=$script:pendingBounds.Height;utc=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
 [void]$form.ShowDialog()
 
 } finally {
   # Runs on normal close and failures before ShowDialog/FormClosed. Each cleanup is isolated.
   if($script:renderGate){$script:renderGate.Close()}
   if($script:statusFrameCache){try{$script:statusFrameCache.Dispose()}catch{}}
+  foreach($image in $script:agentIconCache.Values){try{$image.Dispose()}catch{}}
+  $script:agentIconCache.Clear()
   foreach($resource in @($anim,$timer)){if($resource){try{$resource.Stop()}catch{};try{$resource.Dispose()}catch{}}}
   if($controller){try{$controller.Shutdown()}catch{}};if($script:statusToolTip){try{$script:statusToolTip.Dispose()}catch{}}
   if($form){try{$form.Dispose()}catch{}}

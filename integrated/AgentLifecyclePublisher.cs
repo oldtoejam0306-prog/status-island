@@ -6,7 +6,7 @@ namespace SidebarAgentLifecycle {
  }
  public sealed class Owner {public int Pid;public DateTimeOffset Birth;public string Executable;}
  public static class AgentLifecyclePublisher {
-  static readonly string Root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"StatusIsland\status-sources\agents");
+  static string Root{get{string app=Environment.GetEnvironmentVariable("STATUS_ISLAND_HOME");if(String.IsNullOrWhiteSpace(app))app=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"StatusIsland");string configured=Environment.GetEnvironmentVariable("SIDEBAR_AGENT_LIFECYCLE_HOME");return Path.GetFullPath(String.IsNullOrWhiteSpace(configured)?Path.Combine(app,"status-sources","agents"):configured);}}
   [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)]struct Entry {public uint Size,Usage,Pid;public IntPtr Heap;public uint Module,Threads,Parent;public int Priority;public uint Flags;[MarshalAs(UnmanagedType.ByValTStr,SizeConst=260)]public string Name;}
   [DllImport("kernel32.dll",SetLastError=true)]static extern IntPtr CreateToolhelp32Snapshot(uint flags,uint pid);
   [DllImport("kernel32.dll",CharSet=CharSet.Unicode)]static extern bool Process32First(IntPtr snapshot,ref Entry entry);

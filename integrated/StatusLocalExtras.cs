@@ -2,7 +2,7 @@ using System;using System.IO;using System.Diagnostics;using System.Globalization
 namespace IslandIntegrated {
  public sealed class VoicePackSnapshot {public string Codex="",Claude="";public string[] Packs=new string[0];public bool Available;}
  public static class VoicePackStore {
-  public static string DefaultRoot {get{return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),@".claude\hooks\peon-ping");}}
+  public static string DefaultRoot {get{string configured=Environment.GetEnvironmentVariable("SIDEBAR_VOICE_HOME");if(!String.IsNullOrWhiteSpace(configured))return Path.GetFullPath(configured);return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),@".claude\hooks\peon-ping");}}
   static void Safe(string path){for(var d=new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(path)));d!=null;d=d.Parent)if(d.Exists&&(d.Attributes&FileAttributes.ReparsePoint)!=0)throw new IOException("Voice configuration path is redirected");if(File.Exists(path)&&(File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0)throw new IOException("Voice configuration is redirected");}
   static Dictionary<string,object> Config(string file,out string raw){Safe(file);var info=new FileInfo(file);if(!info.Exists||info.Length>1048576)throw new IOException("Voice configuration unavailable");raw=File.ReadAllText(file);return new JavaScriptSerializer{MaxJsonLength=1048576,RecursionLimit=24}.DeserializeObject(raw) as Dictionary<string,object>;}
   static string Str(Dictionary<string,object> d,string key){object o;return d!=null&&d.TryGetValue(key,out o)&&o is string?(string)o:"";}

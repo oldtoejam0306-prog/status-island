@@ -1,0 +1,2750 @@
+diff --git a/cmd/pinky-ui-demo/main.go b/cmd/pinky-ui-demo/main.go
+index 2625d90..c952814 100644
+--- a/cmd/pinky-ui-demo/main.go
++++ b/cmd/pinky-ui-demo/main.go
+@@ -17,6 +17,7 @@ import (
+ 	"fmt"
+ 	"log"
+ 	"os"
++	"path/filepath"
+ 	"strings"
+ 	"time"
+ 
+@@ -50,8 +51,17 @@ func main() {
+ 	page := flag.String("page", "", `open "activity", "settings" or "add-phone" at start`)
+ 	gw := flag.Bool("gateway", false, "run the real gateway on internal/demo's phones, with scripted agents")
+ 	hidden := flag.Bool("hidden", false, "start with only the menu bar icon, as when an agent starts Pinky")
++	userDataDir := flag.String("user-data-dir", "", "store UI state in this directory instead of the usual user data directory")
+ 	withVideo := flag.Bool("video", true, "with -gateway, stream the demo phones' screens; false leaves them without video, as pinky --fake does")
+ 	flag.Parse()
++	if *userDataDir != "" {
++		abs, err := filepath.Abs(*userDataDir)
++		if err != nil {
++			fmt.Fprintf(os.Stderr, "user data directory: %v\n", err)
++			os.Exit(1)
++		}
++		mygo.App.SetPath(mygo.PathUserData, abs)
++	}
+ 	if *gw {
+ 		if err := runGateway(*theme, *page, *dev, *hidden, *withVideo, *timeout); err != nil {
+ 			fmt.Fprintln(os.Stderr, err)
+diff --git a/cmd/pinky/locales/en.json b/cmd/pinky/locales/en.json
+index 7f0d8a1..cb9154f 100644
+--- a/cmd/pinky/locales/en.json
++++ b/cmd/pinky/locales/en.json
+@@ -5838,6 +5838,18 @@
+   "@needsDenyWithNote": {
+     "description": "Item of More options: opens a field for a note to the agent, then Deny sends it with the answer."
+   },
++  "needsSubmitting": "Submitting…",
++  "@needsSubmitting": {
++    "description": "Status on a handoff card while Pinky waits for the gateway to accept the person’s decision."
++  },
++  "needsAnswerQueueFull": "Pinky is busy. Try again in a moment.",
++  "@needsAnswerQueueFull": {
++    "description": "Error on a handoff card when its local gateway action queue is full. The request stays pending."
++  },
++  "needsRequestChanged": "This request has ended. Use the current card.",
++  "@needsRequestChanged": {
++    "description": "A stale handoff card was clicked after the gateway replaced or removed its request."
++  },
+   "needsDone": "Done",
+   "@needsDone": {
+     "description": "Button on a handoff card: the person did what the agent asked, and the phone goes back to the agent, with the note if there is one."
+diff --git a/cmd/pinky/locales/ja.json b/cmd/pinky/locales/ja.json
+index 0d8136e..8a34c7e 100644
+--- a/cmd/pinky/locales/ja.json
++++ b/cmd/pinky/locales/ja.json
+@@ -901,6 +901,9 @@
+   "needsDeny": "拒否",
+   "needsDenyNotePlaceholder": "なぜダメか、または代わりに何をするか",
+   "needsDenyWithNote": "メモを付けて拒否",
++  "needsSubmitting": "送信中…",
++  "needsAnswerQueueFull": "Pinky の処理が混み合っています。少し待ってからもう一度お試しください。",
++  "needsRequestChanged": "このリクエストは終了しました。現在のカードを使用してください。",
+   "needsDone": "完了",
+   "needsDoneTooltip": "スマホを {agent} に返す",
+   "needsFirstConnection": "初回接続",
+diff --git a/cmd/pinky/locales/zh-Hans.json b/cmd/pinky/locales/zh-Hans.json
+index a645e24..aa6d007 100644
+--- a/cmd/pinky/locales/zh-Hans.json
++++ b/cmd/pinky/locales/zh-Hans.json
+@@ -901,6 +901,9 @@
+   "needsDeny": "拒绝",
+   "needsDenyNotePlaceholder": "为什么不行，或者改做什么",
+   "needsDenyWithNote": "拒绝并附上备注",
++  "needsSubmitting": "正在提交…",
++  "needsAnswerQueueFull": "Pinky 正忙，请稍后重试。",
++  "needsRequestChanged": "这个请求已结束，请使用当前卡片。",
+   "needsDone": "完成",
+   "needsDoneTooltip": "把手机交还给 {agent}",
+   "needsFirstConnection": "首次连接",
+diff --git a/docs/notes/handoff-ack.md b/docs/notes/handoff-ack.md
+new file mode 100644
+index 0000000..805f504
+--- /dev/null
++++ b/docs/notes/handoff-ack.md
+@@ -0,0 +1,7 @@
++# Sidebar handoff and host integration
++
++This patch waits for the gateway response before recording a successful handoff. Pending, rejected and queued decisions keep distinct feedback and retry behavior. Request identity is checked before dispatch, duplicate clicks are suppressed, and late responses cannot replace a newer card. The Windows panel host validates fresh leases and the process/window identity before attaching the sidebar panel. Other platforms retain the ordinary Pinky panel behavior.
++
++## Checks
++
++Against the pinned Pinky 19 source, the Windows client build and vet passed. The targeted UI and locale packages passed. The full package suite was not run for this exported patch. A separate desktop integration run attached the live panel in the hidden idle state at 360×80 with matching lease identity and zero phone actions. The detail view and real handoff button callback remain unverified; phone testing is paused until tomorrow.
+\ No newline at end of file
+diff --git a/ui/handoff_ack_test.go b/ui/handoff_ack_test.go
+new file mode 100644
+index 0000000..c287037
+--- /dev/null
++++ b/ui/handoff_ack_test.go
+@@ -0,0 +1,229 @@
++package ui
++
++import (
++	"errors"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	"github.com/DIYgod/pinky/internal/gateway"
++	"github.com/DIYgod/pinky/ui/fakeapi"
++	mg "github.com/egoist/mygo/ui"
++)
++
++type handoffDecisionAPI struct {
++	gateway.API
++	answer func(string, gateway.Decision, string) error
++}
++
++func (a *handoffDecisionAPI) Decide(id string, decision gateway.Decision, note string) error {
++	return a.answer(id, decision, note)
++}
++
++func drainHandoffPosts(ta *testApp) {
++	ta.mu.Lock()
++	queue := ta.q
++	ta.q = nil
++	ta.mu.Unlock()
++	for _, fn := range queue {
++		fn()
++	}
++}
++
++func waitHandoffPosts(t *testing.T, ta *testApp, ready func() bool) {
++	t.Helper()
++	deadline := time.Now().Add(3 * time.Second)
++	for time.Now().Before(deadline) {
++		drainHandoffPosts(ta)
++		if ready() {
++			return
++		}
++		time.Sleep(time.Millisecond)
++	}
++	t.Fatal("gateway response was not applied")
++}
++
++func handoffAckApp(t *testing.T) (*testApp, gateway.NeedView) {
++	t.Helper()
++	ta := newTestApp(t, fakeapi.OnePhone)
++	n := gateway.NeedView{ID: "handoff-ack-fixture", Kind: gateway.NeedHandoff,
++		DeviceID: "fake-phone", TaskID: "fake-task", Created: time.Now(), Deadline: time.Now().Add(time.Minute)}
++	ta.needs = []gateway.NeedView{n}
++	ta.noting[n.ID] = true
++	return ta, n
++}
++
++func TestHandoffConfirmationWaitsForGateway(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	called, release := make(chan struct{}), make(chan struct{})
++	defer close(release)
++	ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(id string, decision gateway.Decision, note string) error {
++		if id != n.ID || decision != gateway.AllowOnce || note != "fixture note" {
++			t.Error("handoff request identity or decision changed")
++		}
++		close(called)
++		<-release
++		return nil
++	}}
++	ta.decide(n, gateway.AllowOnce, "fixture note")
++	<-called
++	if len(ta.answered) != 0 || !ta.noting[n.ID] {
++		t.Fatal("handoff shown as completed before gateway response")
++	}
++	tt := mg.NewTester(func(c *mg.Context) { ta.handoffControls(c, n) }, 360, 400)
++	if !hasText(tt, "Submitting") || hasText(tt, "Handed back") {
++		t.Fatalf("pending handoff feedback: %q", tt.Texts())
++	}
++}
++
++func TestHandoffConfirmationAfterSuccessfulResponse(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(string, gateway.Decision, string) error { return nil }}
++	ta.decide(n, gateway.AllowOnce, "fixture note")
++	waitHandoffPosts(t, ta, func() bool { return len(ta.answered) == 1 })
++	answer := ta.answered[0]
++	if answer.need.ID != n.ID || answer.d != gateway.AllowOnce || answer.note != "fixture note" || ta.noting[n.ID] {
++		t.Fatal("successful handoff confirmation lost request identity, decision or note")
++	}
++}
++
++func TestHandoffFailureKeepsRequestAndAllowsRetry(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	requestError := errors.New("fixture gateway refused the stale request")
++	ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(string, gateway.Decision, string) error { return requestError }}
++	ta.decide(n, gateway.AllowOnce, "fixture note")
++	waitHandoffPosts(t, ta, func() bool { return len(ta.toasts) > 0 })
++	if len(ta.answered) != 0 || !ta.noting[n.ID] || len(ta.needs) != 1 || ta.needs[0].ID != n.ID {
++		t.Fatal("failed handoff was confirmed or removed instead of remaining retryable")
++	}
++	tt := mg.NewTester(func(c *mg.Context) { ta.handoffControls(c, n) }, 360, 400)
++	if !hasText(tt, requestError.Error()) || !hasText(tt, "Done") {
++		t.Fatalf("failed handoff has no retry feedback: %q", tt.Texts())
++	}
++	ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(string, gateway.Decision, string) error { return nil }}
++	ta.decide(n, gateway.AllowOnce, "fixture note")
++	waitHandoffPosts(t, ta, func() bool { return len(ta.answered) == 1 })
++}
++
++func TestHandoffQueuedDecisionHasNoSuccessConfirmation(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	queue := make(chan func(), 1)
++	queue <- func() {}
++	ta.callQueue[n.DeviceID] = queue
++	ta.decide(n, gateway.AllowOnce, "fixture note")
++	if len(ta.answered) != 0 || !ta.noting[n.ID] {
++		t.Fatal("handoff displayed as completed even though the gateway queue rejected the request")
++	}
++	reply := ta.handoffReplies[n.ID]
++	if reply == nil || reply.pending || reply.message == "" {
++		t.Fatal("full queue did not leave an actionable error")
++	}
++	<-queue
++	ta.decide(n, gateway.AllowOnce, "fixture note")
++	if len(queue) != 1 || !ta.handoffReplies[n.ID].pending {
++		t.Fatal("full-queue handoff could not be retried")
++	}
++}
++
++func TestHandoffDuplicateAndReplacedRequest(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	called, release := make(chan struct{}, 2), make(chan struct{})
++	var count atomic.Int32
++	ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(string, gateway.Decision, string) error {
++		count.Add(1)
++		called <- struct{}{}
++		<-release
++		return nil
++	}}
++	ta.decide(n, gateway.AllowOnce, "")
++	<-called
++	ta.decide(n, gateway.AllowOnce, "")
++	if count.Load() != 1 {
++		t.Fatal("duplicate pending handoff was sent")
++	}
++	close(release)
++	waitHandoffPosts(t, ta, func() bool { return len(ta.answered) == 1 })
++	ta.decide(n, gateway.AllowOnce, "")
++	if count.Load() != 1 {
++		t.Fatal("acknowledged handoff was sent twice")
++	}
++	next := n
++	next.ID = "next-handoff-fixture"
++	ta.needs = []gateway.NeedView{next}
++	ta.decide(n, gateway.AllowOnce, "")
++	if count.Load() != 1 {
++		t.Fatal("old handoff was sent after a newer request arrived")
++	}
++	ta.decide(next, gateway.AllowOnce, "")
++	waitHandoffPosts(t, ta, func() bool { return len(ta.answered) == 2 })
++	if count.Load() != 2 || ta.answered[1].need.ID != next.ID {
++		t.Fatal("new handoff inherited a previous request's acknowledgement")
++	}
++}
++
++func TestHandoffDeclineKeepsDeclineMeaning(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(string, gateway.Decision, string) error { return nil }}
++	ta.decide(n, gateway.Deny, "fixture decline")
++	waitHandoffPosts(t, ta, func() bool { return len(ta.answered) == 1 })
++	tt := mg.NewTester(func(c *mg.Context) { ta.handoffControls(c, n) }, 360, 400)
++	if !hasText(tt, "Declined") || hasText(tt, "Handed back") {
++		t.Fatalf("decline was displayed as a hand-back: %q", tt.Texts())
++	}
++}
++
++func TestHandoffTakeOverStillAllowsDone(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	var decisions []gateway.Decision
++	ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(_ string, decision gateway.Decision, _ string) error {
++		decisions = append(decisions, decision)
++		return nil
++	}}
++	ta.decide(n, gateway.TakeOver, "")
++	waitHandoffPosts(t, ta, func() bool { return ta.handoffReplies[n.ID] == nil })
++	if len(ta.answered) != 0 {
++		t.Fatal("taking over was displayed as completing a handoff")
++	}
++	ta.decide(n, gateway.AllowOnce, "")
++	waitHandoffPosts(t, ta, func() bool { return len(ta.answered) == 1 })
++	if len(decisions) != 2 || decisions[0] != gateway.TakeOver || decisions[1] != gateway.AllowOnce {
++		t.Fatal("taking over prevented the later hand-back")
++	}
++}
++
++func TestHandoffLateResponseDoesNotReplaceNewCard(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	called, release := make(chan struct{}), make(chan struct{})
++	defer close(release)
++	ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(string, gateway.Decision, string) error {
++		close(called)
++		<-release
++		return nil
++	}}
++	ta.decide(n, gateway.AllowOnce, "old note")
++	<-called
++	next := n
++	next.ID = "replacement-handoff-fixture"
++	ta.seenNeed[next.ID] = true
++	ta.setNeeds([]gateway.NeedView{next})
++	if ta.handoffReplies[n.ID] != nil || len(ta.needs) != 1 || ta.needs[0].ID != next.ID {
++		t.Fatal("replaced request state was retained")
++	}
++	// A response queued for an older request must not show over the newer card.
++	release <- struct{}{}
++	deadline := time.Now().Add(3 * time.Second)
++	for time.Now().Before(deadline) {
++		ta.mu.Lock()
++		posted := len(ta.q) > 0
++		ta.mu.Unlock()
++		if posted {
++			drainHandoffPosts(ta)
++			if len(ta.answered) != 0 || ta.needs[0].ID != next.ID {
++				t.Fatal("late acknowledgement replaced the current request")
++			}
++			return
++		}
++		time.Sleep(time.Millisecond)
++	}
++	t.Fatal("late response was not observed")
++}
+diff --git a/ui/panel.go b/ui/panel.go
+index 3fb9bf2..7aef0a5 100644
+--- a/ui/panel.go
++++ b/ui/panel.go
+@@ -1,7 +1,9 @@
+ package ui
+ 
+ import (
++	"fmt"
+ 	"math"
++	"os"
+ 	"strings"
+ 	"time"
+ 
+@@ -23,22 +25,32 @@ const (
+ 	// panelFigure is the screenshot's height for a portrait screen; a
+ 	// landscape one takes the width, at most panelWide high, with its
+ 	// zoom, panelLens high, under it.
+-	panelFigure = 196
+-	panelWide   = 180
+-	panelLens   = 96
++	panelFigure       = 196
++	panelWide         = 180
++	panelLens         = 96
++	panelHostW        = 360
++	panelHostH        = 80
++	panelHostHandoffH = 248
+ )
+ 
+ // panelHeight is the floating panel's height for need n, which it asks or
+ // confirms: room for words of as many lines as they may take, and the
+ // screenshot, which grows into what shorter words leave.
+ func panelHeight(n gateway.NeedView) int {
++	return panelHeightAtWidth(n, panelW, 0)
++}
++
++func panelHeightAtWidth(n gateway.NeedView, width, extraChrome int) int {
++	if n.Kind == gateway.NeedHandoff && width == panelHostW {
++		return panelHostHandoffH + max(0, extraChrome-36)
++	}
+ 	if n.Screenshot == nil || n.Kind != gateway.NeedApproval || newAgentNeed(n) {
+-		return panelH
++		return panelH + extraChrome
+ 	}
+ 	b := n.Screenshot.Bounds()
+ 	_, zoom := marksOf(n).focus(b.Dx(), b.Dy())
+-	fig := figureHeight(panelW-32, panelFigure, panelWide, panelLens, b.Dx(), b.Dy(), zoom)
+-	return panelChrome + int(math.Ceil(float64(fig)))
++	fig := figureHeight(float32(width-32), panelFigure, panelWide, panelLens, b.Dx(), b.Dy(), zoom)
++	return panelChrome + extraChrome + int(math.Ceil(float64(fig)))
+ }
+ 
+ // panelShows returns what the floating panel shows: the last answer for a
+@@ -46,6 +58,29 @@ func panelHeight(n gateway.NeedView) int {
+ func (a *app) panelShows() (gateway.NeedView, *answer, bool) {
+ 	asks := a.approvals()
+ 	answers := a.liveAnswers()
++	if a.panelHostOpaque() && len(asks) > 0 {
++		if a.panelSeenNeed == nil {
++			a.panelSeenNeed = map[string]bool{}
++		}
++		unseen := -1
++		for i, n := range asks {
++			if !a.panelSeenNeed[n.ID] {
++				unseen = i
++			}
++		}
++		if unseen >= 0 {
++			for _, n := range asks {
++				a.panelSeenNeed[n.ID] = true
++			}
++			a.panelIdx = unseen
++			return asks[unseen], nil, true
++		}
++	}
++	if a.panelHostOpaque() && len(asks) == 0 && len(answers) == 0 && len(a.panelSeenNeed) > 0 {
++		a.panelSeenNeed = map[string]bool{}
++		a.panelNeedID = ""
++		a.panelExpandedNeedID = ""
++	}
+ 	// The last answer shows until it times out, unless more wait.
+ 	if len(answers) > 0 && (len(asks) == 0 || time.Until(answers[len(answers)-1].until) > 1500*time.Millisecond) {
+ 		x := answers[len(answers)-1]
+@@ -60,6 +95,21 @@ func (a *app) panelShows() (gateway.NeedView, *answer, bool) {
+ // panelSize is the floating panel's size for what it shows, within its
+ // display.
+ func (a *app) panelSize() (int, int) {
++	if a.panelHostOpaque() {
++		n, _, ok := a.panelShows()
++		if !ok {
++			return panelHostW, panelHostH
++		}
++		expanded := a.panelNeedExpanded(n.ID) || a.noting[n.ID]
++		if !expanded {
++			return panelHostW, panelNoticeHeight(n)
++		}
++		extraChrome := 36
++		if a.noting[n.ID] {
++			extraChrome += 80
++		}
++		return panelHostW, panelHeightAtWidth(n, panelHostW, extraChrome)
++	}
+ 	h := panelH
+ 	if n, _, ok := a.panelShows(); ok {
+ 		h = panelHeight(n)
+@@ -70,9 +120,24 @@ func (a *app) panelSize() (int, int) {
+ 	return panelW, h
+ }
+ 
++func panelNoticeHeight(n gateway.NeedView) int {
++	return panelHostH
++}
++
++func (a *app) panelNeedExpanded(id string) bool {
++	if id != a.panelNeedID {
++		a.panelNeedID = id
++		a.panelExpandedNeedID = ""
++		if a.sidebarSimulation() && os.Getenv("PINKY_DEMO_INITIAL_DETAILS") == "1" {
++			a.panelExpandedNeedID = id
++		}
++	}
++	return a.panelExpandedNeedID == id
++}
++
+ // fitPanel keeps the floating panel at panelSize.
+ func (a *app) fitPanel() {
+-	if a.panel == nil {
++	if a.panel == nil || a.panelHosted() {
+ 		return
+ 	}
+ 	w, h := a.panelSize()
+@@ -83,6 +148,13 @@ func (a *app) fitPanel() {
+ 
+ // answer is an approval the person just answered, which the floating
+ // panel confirms for a moment.
++type handoffReply struct {
++	pending   bool
++	completed bool
++	message   string
++	decision  gateway.Decision
++}
++
+ type answer struct {
+ 	need  gateway.NeedView
+ 	d     gateway.Decision
+@@ -113,31 +185,61 @@ func (a *app) liveAnswers() []answer {
+ // newPanel makes the floating approval panel: a panel window that floats
+ // over every app and shows without taking the keyboard.
+ func (a *app) newPanel() {
++	content := mg.View(a.panelView)
+ 	a.panel = mygo.NewWindow(mygo.WindowOptions{
+ 		Title: locales.PanelWindowTitle(), Width: panelW, Height: panelH,
+-		Hidden: true, Panel: true, Frameless: true, Transparent: true, CornerRadius: 14,
++		Hidden: true, Panel: true, Frameless: true, Transparent: true, CornerRadius: a.panelNativeCornerRadius(),
++		DisableShadow: a.panelHostOpaque(),
+ 		DisableResize: true, DisableMinimize: true, DisableMaximize: true, DisableFullScreen: true,
+ 		SkipTaskbar: true, AlwaysOnTop: true,
+-		Content: mg.View(a.panelView),
++		Content: content,
+ 	})
+-	a.panel.OnClose(func(e *mygo.CloseEvent) {
++	if a.panelHostOpaque() {
++		a.configureSidebarPanelChrome()
++	}
++	panel := a.panel
++	panel.OnClose(func(e *mygo.CloseEvent) {
+ 		if !a.quitting {
+ 			e.PreventDefault()
+-			a.panel.Hide()
++			panel.Hide()
++		}
++	})
++	panel.OnClosed(func() {
++		if a.panel == panel {
++			a.panel = nil
+ 		}
+ 	})
+ }
+ 
++func (a *app) panelCornerRadius() int {
++	if a.panelHostOpaque() {
++		return 24
++	}
++	return 14
++}
++
++func (a *app) panelNativeCornerRadius() int {
++	if a.panelHostOpaque() {
++		return 0
++	}
++	return 14
++}
++
+ // syncPanel shows the panel while approvals wait and the person cannot see
+ // them in the main window, and hides it otherwise. It never takes the
+ // keyboard: the person clicks it first, and then Return allows and Esc
+ // denies.
+ func (a *app) syncPanel() {
++	a.ensureHostedPanel()
+ 	if a.panel == nil {
+ 		return
+ 	}
+ 	a.panelPage = a.page
+ 	want := (len(a.approvals()) > 0 || len(a.liveAnswers()) > 0) && !a.needsInFront()
++	if a.syncHostedPanel(want) {
++		a.panel.Invalidate()
++		return
++	}
+ 	switch {
+ 	case want && !a.panel.IsVisible():
+ 		a.placePanel()
+@@ -165,6 +267,15 @@ func (a *app) showPanel(focus bool) {
+ 		a.showMain()
+ 		return
+ 	}
++	if a.panelHost != nil {
++		a.syncPanel()
++		if a.panelHosted() {
++			if focus {
++				a.panel.Show()
++			}
++			return
++		}
++	}
+ 	if !a.panel.IsVisible() {
+ 		a.placePanel()
+ 		a.fitPanel()
+@@ -188,14 +299,19 @@ func (a *app) placePanel() {
+ // panelView builds the floating panel.
+ func (a *app) panelView(c *mg.Context) {
+ 	p := applyTheme(c)
+-	c.Root().Background(mg.Transparent)
++	if a.panelHostOpaque() {
++		p = applySidebarOverlayTheme(c)
++		c.Root().Background(mg.Transparent)
++	} else {
++		c.Root().Background(mg.Transparent)
++	}
+ 	asks := a.approvals()
+ 	answers := a.liveAnswers()
+ 	if len(answers) > 0 {
+ 		c.After(200 * time.Millisecond)
+ 	}
+ 	if len(asks) == 0 && len(answers) == 0 {
+-		mg.Column(c).Fill().Radius(14).Background(p.panel).Border(1, p.line2)
++		mg.Column(c).Fill().Radius(float32(a.panelCornerRadius())).Background(mg.Transparent).Border(1, p.line2)
+ 		if a.main != nil {
+ 			a.main.Update(a.syncPanel) // nothing left to show: hide
+ 		}
+@@ -205,8 +321,19 @@ func (a *app) panelView(c *mg.Context) {
+ 		a.panelIdx = max(0, len(asks)-1)
+ 	}
+ 	a.fitPanel()
+-	card := mg.Column(c).Fill().Radius(14).Background(p.amberTint).Border(1, p.amberLine).Clip()
+ 	n, x, _ := a.panelShows()
++	if a.panelHostOpaque() && !a.panelNeedExpanded(n.ID) && !a.noting[n.ID] {
++		a.sidebarNotice(c, p, n, x)
++		return
++	}
++	var card mg.Element
++	if a.panelHostOpaque() {
++		card = mg.Scroll(c).Fill().Radius(24).Background(mg.Transparent).BorderWidth(0.75).
++			BorderLinearGradient(sidebarGlassEdge()).Clip()
++		card.Draw(func(pt *mg.Painter, r mg.Rect) { paintSidebarGlass(pt, r, p, 24) })
++	} else {
++		card = mg.Column(c).Fill().Radius(14).Background(p.amberTint).Border(1, p.amberLine).Clip()
++	}
+ 	if x != nil {
+ 		card.Children(func() { a.panelAnswered(c, *x) })
+ 		return
+@@ -255,6 +382,13 @@ func (a *app) panelView(c *mg.Context) {
+ 		}
+ 		mg.Column(c).Grow(1).MinHeight(0).Padding(12, 16, 16, 16).Gap(2).Children(func() {
+ 			mg.Row(c).MinHeight(24).Gap(8).AlignItems(mg.Center).Children(func() {
++				if a.panelHostOpaque() && button(c, "", btnOpt{small: true, icon: icChevU, label: locales.TasksDetails()}).
++					Key("sidebar-collapse-"+n.ID).Width(32).Height(28).Padding(0).Clicked() {
++					a.panelExpandedNeedID = ""
++				}
++				if a.sidebarSimulation() {
++					mg.Text(c, "模拟 / DEMO").FontSize(11).FontWeight(700).TextColor(p.accentInk).SingleLine()
++				}
+ 				if len(asks) > 1 {
+ 					mg.Row(c).Gap(2).AlignItems(mg.Center).Role(mg.RoleGroup).Label(locales.PanelWaitingApprovals()).Children(func() {
+ 						if arrowButton(c, icChevL, locales.PanelPrevious(), a.panelIdx == 0).Clicked() {
+@@ -355,6 +489,147 @@ func (a *app) panelView(c *mg.Context) {
+ 	})
+ }
+ 
++func (a *app) sidebarSimulation() bool { return a.opt.Version == "0.0.0-demo" }
++
++func (a *app) sidebarNotice(c *mg.Context, p *palette, n gateway.NeedView, result *answer) {
++	reply := a.handoffReplies[n.ID]
++	busy := reply != nil && (reply.pending || reply.completed)
++	card := mg.Column(c).Key("sidebar-compact-" + n.ID).Fill().Radius(24).Background(mg.Transparent).
++		BorderWidth(0.75).BorderLinearGradient(sidebarGlassEdge()).Clip()
++	card.Draw(func(pt *mg.Painter, r mg.Rect) { paintSidebarGlass(pt, r, p, 24) })
++	card.Children(func() {
++		mg.Row(c).Fill().Padding(8, 12).Gap(10).AlignItems(mg.Center).Children(func() {
++			summary := mg.ButtonBase(c).Key("sidebar-body-" + n.ID).Label(n.ID + " " + needTitle(n)).
++				Background(mg.Transparent).Padding(0).Justify(mg.Start).AlignItems(mg.Start).Grow(1).MinWidth(0).MinHeight(0)
++			summary.Children(func() {
++				mg.Column(c).Fill().Gap(4).Justify(mg.Center).Children(func() {
++					mg.Row(c).Gap(7).AlignItems(mg.Center).Children(func() {
++						identity := n.DeviceName
++						if n.App != "" {
++							identity += " · " + n.App
++						}
++						if identity == "" {
++							identity = locales.NeedsFirstConnection()
++						}
++						mg.Text(c, identity).FontSize(12).FontWeight(600).TextColor(p.ink2).SingleLine().Grow(1).MinWidth(0)
++						if a.sidebarSimulation() {
++							mg.Text(c, "模拟 / DEMO").FontSize(10).FontWeight(700).TextColor(p.accentInk).SingleLine()
++						}
++						mg.Spacer(c)
++						if result != nil {
++							mg.Text(c, sidebarAnswerStatus(*result)).FontSize(12).FontWeight(600).TextColor(p.accentInk).SingleLine()
++						} else if reply != nil && reply.pending {
++							mg.Text(c, locales.NeedsSubmitting()).FontSize(12).TextColor(p.ink2).SingleLine()
++						} else if reply != nil && reply.message != "" {
++							mg.Text(c, reply.message).FontSize(12).TextColor(p.red).SingleLine().Tooltip(reply.message)
++						} else if !n.Deadline.IsZero() {
++							mg.Text(c, panelTimeRemaining(n)).FontSize(12).FontWeight(600).TextColor(p.accentInk).Tooltip(panelDeadlineText(n)).SingleLine()
++						}
++					})
++					mg.Text(c, needTitle(n)).FontSize(16).FontWeight(650).LineHeight(1.25).MaxLines(2).TextColor(p.ink)
++				})
++			})
++			if summary.Clicked() {
++				a.panelNeedExpanded(n.ID)
++				a.panelExpandedNeedID = n.ID
++			}
++			if result == nil {
++				label, direct := sidebarPrimaryLabel(n), true
++				if reply != nil && reply.pending {
++					label = locales.NeedsSubmitting()
++				}
++				if newAgentNeed(n) {
++					label, direct = locales.NeedsMoreOptions(), false
++				}
++				primary := button(c, label, btnOpt{kind: btnPrimary, small: true, multiline: true}).
++					Key("sidebar-primary-" + n.ID).Width(76).Height(32).Shrink(0).Disabled(busy)
++				if primary.Clicked() {
++					if direct {
++						a.sidebarPrimary(n)
++					} else {
++						a.panelNeedExpanded(n.ID)
++						a.panelExpandedNeedID = n.ID
++					}
++				}
++			}
++		})
++	})
++}
++
++func panelDeadlineText(n gateway.NeedView) string {
++	left := time.Until(n.Deadline)
++	secs := time.Duration(math.Ceil(max(0, left.Seconds()))) * time.Second
++	if n.Kind == gateway.NeedHandoff {
++		return locales.PanelEndsIn(elapsed(secs))
++	}
++	return locales.PanelDeniesIn(elapsed(secs))
++}
++
++func panelTimeRemaining(n gateway.NeedView) string {
++	left := time.Until(n.Deadline)
++	secs := time.Duration(math.Ceil(max(0, left.Seconds()))) * time.Second
++	minutes := int(secs / time.Minute)
++	seconds := int(secs/time.Second) % 60
++	return fmt.Sprintf("%02d:%02d", minutes, seconds)
++}
++
++func sidebarGlassEdge() mg.LinearGradient {
++	// Match GlassSurface.Paint, which draws the neighboring sidebar cards.
++	return mg.LinearGradient{
++		From: mg.RGBA(255, 255, 255, 88.0/255), To: mg.RGBA(255, 255, 255, 22.0/255), Angle: 180,
++	}
++}
++
++func sidebarPrimaryLabel(n gateway.NeedView) string {
++	switch {
++	case n.Kind == gateway.NeedHandoff:
++		return locales.NeedsDone()
++	case n.Unblock:
++		return locales.NeedsAllowTask()
++	default:
++		return locales.NeedsAllow()
++	}
++}
++
++func sidebarAnswerStatus(x answer) string {
++	switch {
++	case x.need.Kind == gateway.NeedHandoff && x.d == gateway.AllowOnce:
++		return locales.PanelHandedBack()
++	case x.need.Kind == gateway.NeedHandoff:
++		return locales.PanelDeclined()
++	case newAgentNeed(x.need) && x.d == gateway.Deny:
++		return locales.PanelDenied()
++	case newAgentNeed(x.need):
++		return locales.PanelAllowed()
++	case x.need.Unblock && x.d != gateway.Deny:
++		return locales.PanelAllowedTask()
++	case x.d == gateway.AllowOnce:
++		return locales.PanelAllowedOnce()
++	case x.d == gateway.AllowTask:
++		return locales.PanelAllowedTask()
++	case x.d == gateway.AllowAlways:
++		return locales.PanelAlwaysAllowed()
++	default:
++		return locales.PanelDenied()
++	}
++}
++
++func (a *app) sidebarPrimary(n gateway.NeedView) {
++	switch {
++	case n.Kind == gateway.NeedHandoff:
++		a.completeHandoff(n)
++	case n.Unblock:
++		a.decide(n, gateway.AllowTask, "")
++	default:
++		a.decide(n, gateway.AllowOnce, "")
++	}
++}
++
++func (a *app) completeHandoff(n gateway.NeedView) {
++	// Match handoffControls: Done answers once with its current note.
++	a.decide(n, gateway.AllowOnce, strings.TrimSpace(a.notes[n.ID]))
++}
++
+ // panelAnswered confirms an answer, as the prototype's allowed and denied
+ // states do.
+ func (a *app) panelAnswered(c *mg.Context, x answer) {
+diff --git a/ui/panel_host.go b/ui/panel_host.go
+new file mode 100644
+index 0000000..d322929
+--- /dev/null
++++ b/ui/panel_host.go
+@@ -0,0 +1,338 @@
++package ui
++
++import (
++	"bytes"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"math"
++	"strconv"
++	"strings"
++	"time"
++	"unicode/utf8"
++)
++
++const (
++	panelHostSchema        = "pinky.sidebar-host.v1"
++	panelHostMaxBytes      = 16 << 10
++	panelHostLeaseDuration = 3 * time.Second
++	panelHostMaxDimension  = 32768
++	panelHostMaxDPI        = 9600
++	panelHostMaxSequence   = 1<<53 - 1
++)
++
++// panelHostSpec is a parsed host.json. Its exported fields are available to
++// the Windows-specific files in this package; none of them establish that a
++// process or HWND is trusted. The caller must verify those facts with Windows.
++type panelHostSpec struct {
++	Schema               string
++	Nonce                string
++	Sequence             uint64
++	PID                  int
++	ProcessBirthFileTime uint64
++	HWND                 uint64
++	UpdatedUTC           time.Time
++	Visible              bool
++	ClientRectPhysical   panelHostRect
++	DPI                  int
++}
++
++// panelHostRect is the host client area in physical screen pixels.
++type panelHostRect struct {
++	X      int32
++	Y      int32
++	Width  int32
++	Height int32
++}
++
++type panelHostDocument struct {
++	Schema               *string           `json:"schema"`
++	Nonce                *string           `json:"nonce"`
++	Sequence             *json.Number      `json:"sequence"`
++	PID                  *json.Number      `json:"pid"`
++	ProcessBirthFileTime *string           `json:"processBirthFileTime"`
++	HWND                 *string           `json:"hwnd"`
++	UpdatedUTC           *string           `json:"updatedUtc"`
++	Visible              *bool             `json:"visible"`
++	ClientRectPhysical   *panelHostRectDoc `json:"clientRectPhysical"`
++	DPI                  *json.Number      `json:"dpi"`
++}
++
++type panelHostRectDoc struct {
++	X      *json.Number `json:"x"`
++	Y      *json.Number `json:"y"`
++	Width  *json.Number `json:"width"`
++	Height *json.Number `json:"height"`
++}
++
++// parsePanelHost validates the host lease document's format and freshness.
++// It deliberately does not verify the OS process, window handle, or DPI mode.
++func parsePanelHost(data []byte, now time.Time) (panelHostSpec, error) {
++	if len(data) == 0 || len(data) > panelHostMaxBytes {
++		return panelHostSpec{}, fmt.Errorf("host document size must be between 1 and %d bytes", panelHostMaxBytes)
++	}
++	if !utf8.Valid(data) {
++		return panelHostSpec{}, errors.New("host document is not valid UTF-8")
++	}
++	if err := rejectDuplicatePanelHostKeys(data); err != nil {
++		return panelHostSpec{}, err
++	}
++	dec := json.NewDecoder(bytes.NewReader(data))
++	dec.UseNumber()
++	dec.DisallowUnknownFields()
++	var doc panelHostDocument
++	if err := dec.Decode(&doc); err != nil {
++		return panelHostSpec{}, fmt.Errorf("decode host document: %w", err)
++	}
++	var trailing any
++	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
++		if err == nil {
++			return panelHostSpec{}, errors.New("host document has trailing JSON")
++		}
++		return panelHostSpec{}, fmt.Errorf("read host document trailer: %w", err)
++	}
++	if doc.Schema == nil || doc.Nonce == nil || doc.Sequence == nil || doc.PID == nil || doc.ProcessBirthFileTime == nil || doc.HWND == nil || doc.UpdatedUTC == nil || doc.Visible == nil || doc.ClientRectPhysical == nil || doc.DPI == nil {
++		return panelHostSpec{}, errors.New("host document is missing a required field")
++	}
++	if *doc.Schema != panelHostSchema {
++		return panelHostSpec{}, fmt.Errorf("unsupported host schema %q", *doc.Schema)
++	}
++	if !validPanelHostNonce(*doc.Nonce) {
++		return panelHostSpec{}, errors.New("host nonce must be 32 hexadecimal characters")
++	}
++	sequence, err := parsePanelHostPositiveUint(*doc.Sequence, panelHostMaxSequence, "sequence")
++	if err != nil {
++		return panelHostSpec{}, err
++	}
++
++	pid, err := parsePanelHostPositiveInt(*doc.PID, math.MaxInt32, "pid")
++	if err != nil {
++		return panelHostSpec{}, err
++	}
++	fileTime, err := strconv.ParseUint(*doc.ProcessBirthFileTime, 10, 64)
++	if err != nil || fileTime == 0 {
++		return panelHostSpec{}, errors.New("processBirthFileTime must be a positive uint64 decimal string")
++	}
++	if !strings.HasPrefix(*doc.HWND, "0x") || len(*doc.HWND) <= 2 {
++		return panelHostSpec{}, errors.New("hwnd must be a positive hexadecimal string with 0x prefix")
++	}
++	for _, c := range (*doc.HWND)[2:] {
++		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
++			return panelHostSpec{}, errors.New("hwnd must contain only hexadecimal digits after 0x")
++		}
++	}
++	hwnd, err := strconv.ParseUint((*doc.HWND)[2:], 16, 64)
++	if err != nil || hwnd == 0 {
++		return panelHostSpec{}, errors.New("hwnd must be a positive uint64 hexadecimal string")
++	}
++	dpi, err := parsePanelHostPositiveInt(*doc.DPI, panelHostMaxDPI, "dpi")
++	if err != nil {
++		return panelHostSpec{}, err
++	}
++
++	updated, err := time.Parse(time.RFC3339Nano, *doc.UpdatedUTC)
++	if err != nil {
++		return panelHostSpec{}, fmt.Errorf("updatedUtc must be RFC3339Nano: %w", err)
++	}
++	_, offset := updated.Zone()
++	if offset != 0 {
++		return panelHostSpec{}, errors.New("updatedUtc must use UTC")
++	}
++	updated = updated.UTC()
++	if updated.After(now.Add(time.Second)) {
++		return panelHostSpec{}, errors.New("host document timestamp is more than one second in the future")
++	}
++	if now.Sub(updated) > panelHostLeaseDuration {
++		return panelHostSpec{}, errors.New("host document is more than three seconds old")
++	}
++
++	rect, err := parsePanelHostRect(doc.ClientRectPhysical)
++	if err != nil {
++		return panelHostSpec{}, err
++	}
++	return panelHostSpec{
++		Schema:               *doc.Schema,
++		Nonce:                *doc.Nonce,
++		Sequence:             sequence,
++		PID:                  pid,
++		ProcessBirthFileTime: fileTime,
++		HWND:                 hwnd,
++		UpdatedUTC:           updated,
++		Visible:              *doc.Visible,
++		ClientRectPhysical:   rect,
++		DPI:                  dpi,
++	}, nil
++}
++
++func parsePanelHostPositiveUint(value json.Number, max uint64, name string) (uint64, error) {
++	for _, c := range value.String() {
++		if c < '0' || c > '9' {
++			return 0, fmt.Errorf("%s must contain only decimal digits", name)
++		}
++	}
++	n, err := strconv.ParseUint(value.String(), 10, 64)
++	if err != nil || n == 0 || n > max {
++		return 0, fmt.Errorf("%s must be a positive integer no greater than %d", name, max)
++	}
++	return n, nil
++}
++
++func validPanelHostNonce(nonce string) bool {
++	if len(nonce) != 32 {
++		return false
++	}
++	for _, c := range nonce {
++		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
++			return false
++		}
++	}
++	return true
++}
++
++func rejectDuplicatePanelHostKeys(data []byte) error {
++	dec := json.NewDecoder(bytes.NewReader(data))
++	dec.UseNumber()
++	if err := scanPanelHostJSONValue(dec); err != nil {
++		return fmt.Errorf("validate host JSON keys: %w", err)
++	}
++	var trailing any
++	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
++		return errors.New("host document has trailing JSON")
++	}
++	return nil
++}
++
++func scanPanelHostJSONValue(dec *json.Decoder) error {
++	tok, err := dec.Token()
++	if err != nil {
++		return err
++	}
++	delim, ok := tok.(json.Delim)
++	if !ok {
++		return nil
++	}
++	switch delim {
++	case '{':
++		seen := make(map[string]struct{})
++		for dec.More() {
++			key, err := dec.Token()
++			if err != nil {
++				return err
++			}
++			name, ok := key.(string)
++			if !ok {
++				return errors.New("object key is not a string")
++			}
++			if _, exists := seen[name]; exists {
++				return fmt.Errorf("duplicate object key %q", name)
++			}
++			seen[name] = struct{}{}
++			if err := scanPanelHostJSONValue(dec); err != nil {
++				return err
++			}
++		}
++		end, err := dec.Token()
++		if err != nil || end != json.Delim('}') {
++			return errors.New("unterminated object")
++		}
++	case '[':
++		for dec.More() {
++			if err := scanPanelHostJSONValue(dec); err != nil {
++				return err
++			}
++		}
++		end, err := dec.Token()
++		if err != nil || end != json.Delim(']') {
++			return errors.New("unterminated array")
++		}
++	default:
++		return fmt.Errorf("unexpected JSON delimiter %q", delim)
++	}
++	return nil
++}
++
++func parsePanelHostPositiveInt(value json.Number, max int, name string) (int, error) {
++	n, err := strconv.ParseInt(value.String(), 10, 64)
++	if err != nil || n <= 0 || n > int64(max) {
++		return 0, fmt.Errorf("%s must be a positive integer no greater than %d", name, max)
++	}
++	return int(n), nil
++}
++
++func parsePanelHostRect(doc *panelHostRectDoc) (panelHostRect, error) {
++	if doc.X == nil || doc.Y == nil || doc.Width == nil || doc.Height == nil {
++		return panelHostRect{}, errors.New("clientRectPhysical is missing a required field")
++	}
++	x, err := parsePanelHostCoordinate(*doc.X, "clientRectPhysical.x")
++	if err != nil {
++		return panelHostRect{}, err
++	}
++	y, err := parsePanelHostCoordinate(*doc.Y, "clientRectPhysical.y")
++	if err != nil {
++		return panelHostRect{}, err
++	}
++	w, err := parsePanelHostDimension(*doc.Width, "clientRectPhysical.width")
++	if err != nil {
++		return panelHostRect{}, err
++	}
++	h, err := parsePanelHostDimension(*doc.Height, "clientRectPhysical.height")
++	if err != nil {
++		return panelHostRect{}, err
++	}
++	return panelHostRect{X: x, Y: y, Width: w, Height: h}, nil
++}
++
++func parsePanelHostCoordinate(value json.Number, name string) (int32, error) {
++	n, err := strconv.ParseInt(value.String(), 10, 32)
++	if err != nil {
++		return 0, fmt.Errorf("%s must be an int32 coordinate", name)
++	}
++	return int32(n), nil
++}
++
++func parsePanelHostDimension(value json.Number, name string) (int32, error) {
++	n, err := strconv.ParseInt(value.String(), 10, 32)
++	if err != nil || n <= 0 || n > panelHostMaxDimension {
++		return 0, fmt.Errorf("%s must be between 1 and %d", name, panelHostMaxDimension)
++	}
++	return int32(n), nil
++}
++
++// panelHostLease tracks progress using the receiver's local clock. Re-reading
++// an unchanged host.json never renews the lease.
++type panelHostLease struct {
++	spec       panelHostSpec
++	sequence   uint64
++	lastUpdate time.Time
++	seenAt     time.Time
++}
++
++func (l *panelHostLease) observe(spec panelHostSpec, now time.Time) bool {
++	if l.spec.Nonce == "" || spec.Nonce != l.spec.Nonce {
++		l.spec = spec
++		l.sequence = spec.Sequence
++		l.lastUpdate = spec.UpdatedUTC
++		l.seenAt = now
++		return true
++	}
++	if spec.PID != l.spec.PID || spec.ProcessBirthFileTime != l.spec.ProcessBirthFileTime || spec.HWND != l.spec.HWND {
++		return false
++	}
++	if spec.Sequence <= l.sequence || spec.UpdatedUTC.Before(l.lastUpdate) {
++		return false
++	}
++	l.spec = spec
++	l.sequence = spec.Sequence
++	l.lastUpdate = spec.UpdatedUTC
++	l.seenAt = now
++	return true
++}
++
++func (l panelHostLease) valid(now time.Time) bool {
++	if l.spec.Nonce == "" {
++		return false
++	}
++	elapsed := now.Sub(l.seenAt)
++	return elapsed >= 0 && elapsed < panelHostLeaseDuration
++}
+diff --git a/ui/panel_host_stub.go b/ui/panel_host_stub.go
+new file mode 100644
+index 0000000..7cb775b
+--- /dev/null
++++ b/ui/panel_host_stub.go
+@@ -0,0 +1,14 @@
++//go:build !windows
++
++package ui
++
++type panelHost struct{}
++
++func (a *app) panelHostOpaque() bool        { return false }
++func (a *app) configureSidebarPanelChrome() {}
++
++func (a *app) startPanelHost()                {}
++func (a *app) stopPanelHost()                 {}
++func (a *app) ensureHostedPanel()             {}
++func (a *app) panelHosted() bool              { return false }
++func (a *app) syncHostedPanel(want bool) bool { return false }
+diff --git a/ui/panel_host_test.go b/ui/panel_host_test.go
+new file mode 100644
+index 0000000..db1dbe9
+--- /dev/null
++++ b/ui/panel_host_test.go
+@@ -0,0 +1,195 @@
++package ui
++
++import (
++	"bytes"
++	"encoding/json"
++	"strings"
++	"testing"
++	"time"
++)
++
++func panelHostTestDocument(now time.Time) map[string]any {
++	return map[string]any{
++		"schema":               panelHostSchema,
++		"nonce":                "5c73dcac845b49ce919ec64cb76fe3e9",
++		"sequence":             1,
++		"pid":                  1234,
++		"processBirthFileTime": "134124576000000000",
++		"hwnd":                 "0x123456",
++		"updatedUtc":           now.UTC().Format(time.RFC3339Nano),
++		"visible":              true,
++		"clientRectPhysical": map[string]any{
++			"x": 1800, "y": 160, "width": 600, "height": 675,
++		},
++		"dpi": 144,
++	}
++}
++
++func marshalPanelHostTestDocument(t *testing.T, doc map[string]any) []byte {
++	t.Helper()
++	b, err := json.Marshal(doc)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return b
++}
++
++func TestParsePanelHost(t *testing.T) {
++	now := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
++	doc := panelHostTestDocument(now)
++	doc["visible"] = false
++	rect := doc["clientRectPhysical"].(map[string]any)
++	rect["x"], rect["y"] = -1800, -160
++	b := marshalPanelHostTestDocument(t, doc)
++	got, err := parsePanelHost(b, now)
++	if err != nil {
++		t.Fatalf("parse valid invisible host: %v", err)
++	}
++	if got.Sequence != 1 || got.Visible || got.ClientRectPhysical.X != -1800 || got.ClientRectPhysical.Y != -160 {
++		t.Fatalf("parsed host lost contract values: %+v", got)
++	}
++}
++
++func TestParsePanelHostRejectsInvalidDocuments(t *testing.T) {
++	now := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
++	tests := []struct {
++		name string
++		edit func(map[string]any)
++		raw  func([]byte) []byte
++	}{
++		{name: "missing field", edit: func(d map[string]any) { delete(d, "sequence") }},
++		{name: "unknown field", edit: func(d map[string]any) { d["extra"] = true }},
++		{name: "wrong schema", edit: func(d map[string]any) { d["schema"] = "pinky.sidebar-host.v2" }},
++		{name: "short nonce", edit: func(d map[string]any) { d["nonce"] = "1234" }},
++		{name: "non-hex nonce", edit: func(d map[string]any) { d["nonce"] = "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" }},
++		{name: "zero sequence", edit: func(d map[string]any) { d["sequence"] = json.Number("0") }},
++		{name: "fractional sequence", edit: func(d map[string]any) { d["sequence"] = json.Number("1.5") }},
++		{name: "unsafe sequence", edit: func(d map[string]any) { d["sequence"] = json.Number("9007199254740992") }},
++		{name: "zero pid", edit: func(d map[string]any) { d["pid"] = json.Number("0") }},
++		{name: "fractional pid", edit: func(d map[string]any) { d["pid"] = json.Number("12.25") }},
++		{name: "zero process birth", edit: func(d map[string]any) { d["processBirthFileTime"] = "0" }},
++		{name: "signed process birth", edit: func(d map[string]any) { d["processBirthFileTime"] = "+1" }},
++		{name: "overflow process birth", edit: func(d map[string]any) { d["processBirthFileTime"] = "18446744073709551616" }},
++		{name: "zero hwnd", edit: func(d map[string]any) { d["hwnd"] = "0x0" }},
++		{name: "malformed hwnd", edit: func(d map[string]any) { d["hwnd"] = "0xxyz" }},
++		{name: "signed hwnd", edit: func(d map[string]any) { d["hwnd"] = "0x+1" }},
++		{name: "zero dpi", edit: func(d map[string]any) { d["dpi"] = json.Number("0") }},
++		{name: "excessive dpi", edit: func(d map[string]any) { d["dpi"] = panelHostMaxDPI + 1 }},
++		{name: "non-UTC timestamp", edit: func(d map[string]any) { d["updatedUtc"] = "2026-11-10T08:00:00+08:00" }},
++		{name: "invalid timestamp", edit: func(d map[string]any) { d["updatedUtc"] = "yesterday" }},
++		{name: "future timestamp", edit: func(d map[string]any) {
++			d["updatedUtc"] = now.Add(time.Second + time.Nanosecond).Format(time.RFC3339Nano)
++		}},
++		{name: "stale timestamp", edit: func(d map[string]any) {
++			d["updatedUtc"] = now.Add(-panelHostLeaseDuration - time.Nanosecond).Format(time.RFC3339Nano)
++		}},
++		{name: "coordinate overflow", edit: func(d map[string]any) { d["clientRectPhysical"].(map[string]any)["x"] = json.Number("2147483648") }},
++		{name: "zero dimension", edit: func(d map[string]any) { d["clientRectPhysical"].(map[string]any)["width"] = 0 }},
++		{name: "excessive dimension", edit: func(d map[string]any) { d["clientRectPhysical"].(map[string]any)["height"] = panelHostMaxDimension + 1 }},
++		{name: "missing rectangle field", edit: func(d map[string]any) { delete(d["clientRectPhysical"].(map[string]any), "height") }},
++		{name: "trailing JSON", raw: func(b []byte) []byte { return append(b, []byte(` {}`)...) }},
++		{name: "duplicate key", raw: func(b []byte) []byte {
++			return bytes.Replace(b, []byte(`"schema":"pinky.sidebar-host.v1"`), []byte(`"schema":"x","schema":"pinky.sidebar-host.v1"`), 1)
++		}},
++		{name: "oversized JSON", raw: func(b []byte) []byte { return append(b, []byte(strings.Repeat(" ", panelHostMaxBytes+1))...) }},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			doc := panelHostTestDocument(now)
++			if tt.edit != nil {
++				tt.edit(doc)
++			}
++			b := marshalPanelHostTestDocument(t, doc)
++			if tt.raw != nil {
++				b = tt.raw(b)
++			}
++			if _, err := parsePanelHost(b, now); err == nil {
++				t.Fatal("expected invalid host document to be rejected")
++			}
++		})
++	}
++}
++
++func TestPanelHostLeaseSequenceAndNonce(t *testing.T) {
++	base := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
++	spec := panelHostSpec{Schema: panelHostSchema, Nonce: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Sequence: 1, UpdatedUTC: base, Visible: true}
++	var lease panelHostLease
++	if !lease.observe(spec, base) || !lease.valid(base) {
++		t.Fatal("first host heartbeat did not establish a lease")
++	}
++
++	duplicate := spec
++	duplicate.Sequence = 1
++	duplicate.UpdatedUTC = base.Add(time.Second)
++	duplicate.Visible = false
++	duplicate.ClientRectPhysical.X = -20
++	if lease.observe(duplicate, base.Add(time.Second)) {
++		t.Fatal("duplicate sequence refreshed the lease")
++	}
++	if !lease.spec.Visible || lease.spec.ClientRectPhysical.X != 0 {
++		t.Fatal("duplicate sequence replaced the last host state")
++	}
++
++	backwards := spec
++	backwards.Sequence = 2
++	backwards.UpdatedUTC = base.Add(-time.Nanosecond)
++	if lease.observe(backwards, base.Add(time.Second)) {
++		t.Fatal("backwards timestamp refreshed the lease")
++	}
++
++	advanced := spec
++	advanced.Sequence = 2
++	advanced.UpdatedUTC = base.Add(time.Second)
++	if !lease.observe(advanced, base.Add(time.Second)) || !lease.valid(base.Add(3*time.Second-time.Nanosecond)) {
++		t.Fatal("advanced sequence did not renew the lease")
++	}
++	if lease.valid(base.Add(4 * time.Second)) {
++		t.Fatal("lease remained valid at the three-second boundary")
++	}
++
++	newHost := advanced
++	newHost.Nonce = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
++	newHost.Sequence = 1
++	newHost.UpdatedUTC = base.Add(2 * time.Second)
++	newHost.PID = 4321
++	newHost.ProcessBirthFileTime++
++	newHost.HWND++
++	if !lease.observe(newHost, base.Add(4*time.Second)) || !lease.valid(base.Add(4*time.Second)) {
++		t.Fatal("new nonce did not reset the lease")
++	}
++}
++
++func TestPanelHostLeaseIdentityIsStableWithinNonce(t *testing.T) {
++	base := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
++	original := panelHostSpec{
++		Schema: panelHostSchema, Nonce: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Sequence: 1,
++		PID: 1234, ProcessBirthFileTime: 100, HWND: 0x1234, UpdatedUTC: base,
++	}
++	changes := []struct {
++		name   string
++		mutate func(*panelHostSpec)
++	}{
++		{name: "pid", mutate: func(s *panelHostSpec) { s.PID++ }},
++		{name: "process birth", mutate: func(s *panelHostSpec) { s.ProcessBirthFileTime++ }},
++		{name: "hwnd", mutate: func(s *panelHostSpec) { s.HWND++ }},
++	}
++	for _, change := range changes {
++		t.Run(change.name, func(t *testing.T) {
++			lease := panelHostLease{}
++			lease.observe(original, base)
++			candidate := original
++			candidate.Sequence = 2
++			candidate.UpdatedUTC = base.Add(time.Second)
++			change.mutate(&candidate)
++			if lease.observe(candidate, base.Add(time.Second)) {
++				t.Fatal("changed identity renewed the lease")
++			}
++			if lease.spec != original {
++				t.Fatalf("changed identity replaced the host state: %+v", lease.spec)
++			}
++			if lease.valid(base.Add(panelHostLeaseDuration)) {
++				t.Fatal("changed identity extended the original lease")
++			}
++		})
++	}
++}
+diff --git a/ui/panel_host_windows.go b/ui/panel_host_windows.go
+new file mode 100644
+index 0000000..b04d8f5
+--- /dev/null
++++ b/ui/panel_host_windows.go
+@@ -0,0 +1,654 @@
++package ui
++
++import (
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"log"
++	"os"
++	"path/filepath"
++	"strconv"
++	"strings"
++	"time"
++	"unsafe"
++
++	"github.com/egoist/mygo"
++	"golang.org/x/sys/windows"
++)
++
++const (
++	panelHostEnvironment  = "PINKY_PANEL_HOST_DIR"
++	panelHostInterval     = 250 * time.Millisecond
++	panelHostStyleIndex   = ^uintptr(15) // GWL_STYLE (-16)
++	panelHostExStyleIndex = ^uintptr(19) // GWL_EXSTYLE (-20)
++	panelHostOwnerIndex   = ^uintptr(7)  // GWLP_HWNDPARENT (-8)
++	panelHostChildStyle   = 0x40000000
++	panelHostTopmostStyle = 0x00000008
++	panelHostNoSize       = 0x0001
++	panelHostNoMove       = 0x0002
++	panelHostNoActivate   = 0x0010
++	panelHostFrameChanged = 0x0020
++	panelHostOwnerWindow  = 4
++	panelHostTopmost      = ^uintptr(0)
++	panelHostNotTopmost   = ^uintptr(1)
++)
++
++var (
++	errPanelHostHidden   = errors.New("host is hidden")
++	errPanelHostLayout   = errors.New("host client rectangle does not match")
++	panelHostUser32      = windows.NewLazySystemDLL("user32.dll")
++	panelHostKernel32    = windows.NewLazySystemDLL("kernel32.dll")
++	panelHostDWM         = windows.NewLazySystemDLL("dwmapi.dll")
++	panelHostSetDWM      = panelHostDWM.NewProc("DwmSetWindowAttribute")
++	panelHostIsWindow    = panelHostUser32.NewProc("IsWindow")
++	panelHostIsVisible   = panelHostUser32.NewProc("IsWindowVisible")
++	panelHostWindowPID   = panelHostUser32.NewProc("GetWindowThreadProcessId")
++	panelHostGetRect     = panelHostUser32.NewProc("GetClientRect")
++	panelHostToScreen    = panelHostUser32.NewProc("ClientToScreen")
++	panelHostGetDPI      = panelHostUser32.NewProc("GetDpiForWindow")
++	panelHostDPIContext  = panelHostUser32.NewProc("GetWindowDpiAwarenessContext")
++	panelHostDPIEqual    = panelHostUser32.NewProc("AreDpiAwarenessContextsEqual")
++	panelHostGetLong     = panelHostUser32.NewProc("GetWindowLongPtrW")
++	panelHostSetLong     = panelHostUser32.NewProc("SetWindowLongPtrW")
++	panelHostGetWindow   = panelHostUser32.NewProc("GetWindow")
++	panelHostSetPosition = panelHostUser32.NewProc("SetWindowPos")
++	panelHostClearError  = panelHostKernel32.NewProc("SetLastError")
++	panelHostDriveType   = panelHostKernel32.NewProc("GetDriveTypeW")
++	panelHostReplaceFile = panelHostKernel32.NewProc("ReplaceFileW")
++)
++
++type panelHost struct {
++	directory    string
++	lease        panelHostLease
++	processBirth uint64
++	nonce        string
++	sequence     uint64
++	attached     bool
++	parent       uintptr
++	seenParent   uintptr
++	style        uintptr
++	exStyle      uintptr
++	owner        uintptr
++	width        int
++	height       int
++	x            int32
++	y            int32
++	layoutWait   time.Time
++	blocked      bool
++}
++
++type panelHostPublication struct {
++	Schema               string `json:"schema"`
++	Nonce                string `json:"nonce"`
++	Sequence             uint64 `json:"sequence"`
++	PID                  int    `json:"pid"`
++	ProcessBirthFileTime string `json:"processBirthFileTime"`
++	UpdatedUTC           string `json:"updatedUtc"`
++	Phase                string `json:"phase"`
++	DesiredWidthDIP      int    `json:"desiredWidthDip"`
++	DesiredHeightDIP     int    `json:"desiredHeightDip"`
++	PanelHWND            string `json:"panelHwnd,omitempty"`
++	Reason               string `json:"reason,omitempty"`
++}
++
++// The optional host transports layout metadata. Decisions remain in panelView.
++func (a *app) startPanelHost() {
++	directory := os.Getenv(panelHostEnvironment)
++	if directory == "" {
++		return
++	}
++	if err := validatePanelHostDirectory(directory); err != nil {
++		log.Printf("pinky: approval host directory unavailable: %v", err)
++		return
++	}
++	for _, proc := range []*windows.LazyProc{panelHostDPIContext, panelHostDPIEqual, panelHostGetDPI} {
++		if err := proc.Find(); err != nil {
++			log.Printf("pinky: approval host requires window DPI APIs: %v", err)
++			return
++		}
++	}
++	birth, err := panelHostBirth(os.Getpid())
++	if err != nil {
++		log.Printf("pinky: approval host process identity unavailable: %v", err)
++		return
++	}
++	a.panelHost = &panelHost{directory: filepath.Clean(directory), processBirth: birth}
++	go func() {
++		ticker := time.NewTicker(panelHostInterval)
++		defer ticker.Stop()
++		for {
++			select {
++			case <-a.ctx.Done():
++				return
++			case <-ticker.C:
++				mygo.RunOnMain(func() {
++					if a.ctx.Err() == nil {
++						a.syncPanel()
++					}
++				})
++			}
++		}
++	}()
++}
++
++func (a *app) stopPanelHost() {
++	if a.panelHost == nil {
++		return
++	}
++	a.restoreHostedPanel(false)
++	a.publishPanelHost("hidden", "")
++	a.panelHost = nil
++}
++
++func (a *app) panelHosted() bool {
++	return a.panelHost != nil && a.panelHost.attached
++}
++
++// The floating panel remains a top-level HWND with an optional native owner.
++func (a *app) panelHostOpaque() bool { return a.panelHost != nil }
++
++// MyGo's Panel flag requests DWM rounding even when CornerRadius is zero.
++// Only the glass painter should define the hosted panel's 24-DIP silhouette.
++func (a *app) configureSidebarPanelChrome() {
++	for _, attribute := range []struct{ id, value uint32 }{
++		{33, 1},          // DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND.
++		{34, 0xfffffffe}, // DWMWA_BORDER_COLOR, DWMWA_COLOR_NONE.
++	} {
++		result, _, _ := panelHostSetDWM.Call(a.panel.NativeHandle(), uintptr(attribute.id),
++			uintptr(unsafe.Pointer(&attribute.value)), unsafe.Sizeof(attribute.value))
++		if uint32(result) == 0x80070005 {
++			if a.panelHost != nil {
++				a.panelHost.recordError(windows.ERROR_ACCESS_DENIED)
++			}
++			return
++		}
++		if result != 0 && uint32(result) != 0x80070057 {
++			log.Printf("pinky: sidebar panel chrome attribute %d failed: 0x%x", attribute.id, uint32(result))
++		}
++	}
++}
++
++// A parent HWND can destroy its child without ending the Pinky coordinator.
++func (a *app) ensureHostedPanel() {
++	if a.panelHost == nil {
++		return
++	}
++	if a.finishSidebarDemo() {
++		return
++	}
++	if a.panel != nil && !a.panel.IsDestroyed() {
++		if ok, _, _ := panelHostIsWindow.Call(a.panel.NativeHandle()); ok != 0 {
++			return
++		}
++		// An external parent's exit can remove the HWND without reporting Closed.
++		a.panel.Destroy()
++	}
++	a.panelHost.attached = false
++	a.panelHost.parent = 0
++	a.newPanel()
++}
++
++func (a *app) syncHostedPanel(want bool) bool {
++	host := a.panelHost
++	if host == nil || host.blocked {
++		return false
++	}
++	if a.finishSidebarDemo() {
++		return true
++	}
++	now := time.Now()
++	spec, err := readPanelHost(host.directory, now)
++	if err != nil {
++		host.recordError(err)
++		a.restoreHostedPanel(want)
++		a.publishPanelHost(panelHostPhase(want), "host-unavailable")
++		return false
++	}
++	host.lease.observe(spec, now)
++	if !host.lease.valid(now) {
++		a.restoreHostedPanel(want)
++		a.publishPanelHost(panelHostPhase(want), "host-expired")
++		return false
++	}
++	spec = host.lease.spec
++	if host.attached {
++		owner, _, _ := panelHostGetWindow.Call(a.panel.NativeHandle(), panelHostOwnerWindow)
++		if owner != host.parent {
++			a.restoreHostedPanel(want)
++		}
++	}
++	if err := validatePanelHostWindow(spec, a.panel.NativeHandle()); err != nil {
++		if errors.Is(err, errPanelHostHidden) && host.attached && host.parent == uintptr(spec.HWND) {
++			// The owner can minimize before its next visibility heartbeat arrives.
++			a.panel.Hide()
++			a.publishPanelHost("requested", "")
++			return true
++		}
++		if errors.Is(err, errPanelHostLayout) && host.attached && host.parent == uintptr(spec.HWND) {
++			if host.layoutWait.IsZero() {
++				host.layoutWait = now
++			}
++			if now.Sub(host.layoutWait) < panelHostLeaseDuration {
++				a.publishPanelHost("requested", "host-layout-pending")
++				return true
++			}
++		}
++		host.recordError(err)
++		a.restoreHostedPanel(want)
++		a.publishPanelHost(panelHostPhase(want), "host-window-invalid")
++		return false
++	}
++	host.layoutWait = time.Time{}
++	if host.nonce != spec.Nonce {
++		a.restoreHostedPanel(want)
++		host.nonce, host.sequence = spec.Nonce, 0
++	}
++	if !want {
++		a.restoreHostedPanel(false)
++		a.publishPanelHost("hidden", "")
++		return false
++	}
++	if !spec.Visible {
++		// A live host controls visibility while the original need stays pending.
++		a.panel.Hide()
++		a.publishPanelHost("requested", "")
++		return true
++	}
++	a.panelMax = 0
++	width, height := a.panelSize()
++	widthPX, heightPX := (width*spec.DPI+95)/96, (height*spec.DPI+95)/96
++	// The sidebar supplies the available viewport. Expanded content can scroll.
++	widthPX = min(widthPX, int(spec.ClientRectPhysical.Width))
++	heightPX = min(heightPX, int(spec.ClientRectPhysical.Height))
++	if !host.attached {
++		if err := a.attachHostedPanel(spec, widthPX, heightPX); err != nil {
++			host.recordError(err)
++			a.restoreHostedPanel(true)
++			a.publishPanelHost("standalone", "attach-failed")
++			return false
++		}
++	} else if host.width != widthPX || host.height != heightPX || host.x != spec.ClientRectPhysical.X || host.y != spec.ClientRectPhysical.Y {
++		if err := positionHostedPanel(a.panel.NativeHandle(), spec.ClientRectPhysical, widthPX, heightPX); err != nil {
++			host.recordError(err)
++			a.restoreHostedPanel(true)
++			a.publishPanelHost("standalone", "resize-failed")
++			return false
++		}
++		host.width, host.height = widthPX, heightPX
++		host.x, host.y = spec.ClientRectPhysical.X, spec.ClientRectPhysical.Y
++	}
++	if !a.panel.IsVisible() {
++		a.panel.ShowInactive()
++	}
++	if err := a.publishPanelHost("attached", ""); err != nil {
++		host.recordError(err)
++		a.restoreHostedPanel(true)
++		return false
++	}
++	return true
++}
++
++// An access denial ends this opt-in connection until the app is restarted.
++func (h *panelHost) recordError(err error) {
++	if errors.Is(err, os.ErrPermission) || errors.Is(err, windows.ERROR_ACCESS_DENIED) {
++		if !h.blocked {
++			log.Printf("pinky: approval host disabled after access denial: %v", err)
++		}
++		h.blocked = true
++	}
++}
++
++func panelHostPhase(want bool) string {
++	if want {
++		return "standalone"
++	}
++	return "hidden"
++}
++
++func (a *app) attachHostedPanel(spec panelHostSpec, width, height int) error {
++	host := a.panelHost
++	parent := uintptr(spec.HWND)
++	window := a.panel.NativeHandle()
++	host.style, _, _ = panelHostGetLong.Call(window, panelHostStyleIndex)
++	host.exStyle, _, _ = panelHostGetLong.Call(window, panelHostExStyleIndex)
++	host.owner, _, _ = panelHostGetLong.Call(window, panelHostOwnerIndex)
++	if host.style&panelHostChildStyle != 0 {
++		return errors.New("the approval popup must remain a top-level window")
++	}
++	a.panel.Hide()
++	host.attached, host.parent = true, parent
++	host.seenParent = parent
++	// Ownership preserves the transparent composition surface and its own input.
++	if err := setPanelHostLong(window, panelHostOwnerIndex, parent); err != nil {
++		return err
++	}
++	if err := positionHostedPanel(window, spec.ClientRectPhysical, width, height); err != nil {
++		return err
++	}
++	a.panel.ShowInactive()
++	hostContext, _, _ := panelHostDPIContext.Call(parent)
++	panelContext, _, _ := panelHostDPIContext.Call(window)
++	hostDPI, _, _ := panelHostGetDPI.Call(parent)
++	panelDPI, _, _ := panelHostGetDPI.Call(window)
++	if equal, _, _ := panelHostDPIEqual.Call(hostContext, panelContext); equal == 0 || hostDPI == 0 || panelDPI != hostDPI {
++		return errors.New("panel DPI changed during attachment")
++	}
++	host.width, host.height = width, height
++	host.x, host.y = spec.ClientRectPhysical.X, spec.ClientRectPhysical.Y
++	return nil
++}
++
++// The isolated demo belongs to its preview and ends with that preview.
++func (a *app) finishSidebarDemo() bool {
++	host := a.panelHost
++	if a.opt.Version != "0.0.0-demo" || os.Getenv("PINKY_DEMO_EXIT_WITH_HOST") != "1" || host == nil || host.seenParent == 0 {
++		return false
++	}
++	if exists, _, _ := panelHostIsWindow.Call(host.seenParent); exists != 0 {
++		return false
++	}
++	if a.panel != nil && !a.panel.IsDestroyed() {
++		a.panel.Hide()
++	}
++	mygo.App.Quit()
++	return true
++}
++
++func (a *app) restoreHostedPanel(show bool) {
++	host := a.panelHost
++	if host == nil || !host.attached {
++		return
++	}
++	host.attached, host.parent = false, 0
++	if a.panel == nil || a.panel.IsDestroyed() {
++		a.newPanel()
++	} else {
++		window := a.panel.NativeHandle()
++		if ok, _, _ := panelHostIsWindow.Call(window); ok == 0 {
++			a.panel.Destroy()
++			a.newPanel()
++		} else {
++			a.panel.Hide()
++			err := setPanelHostLong(window, panelHostOwnerIndex, host.owner)
++			if err == nil {
++				err = setPanelHostLong(window, panelHostStyleIndex, host.style)
++			}
++			if err == nil {
++				err = setPanelHostLong(window, panelHostExStyleIndex, host.exStyle)
++			}
++			if err == nil {
++				band := panelHostNotTopmost
++				if host.exStyle&panelHostTopmostStyle != 0 {
++					band = panelHostTopmost
++				}
++				if ok, _, callErr := panelHostSetPosition.Call(window, band, 0, 0, 0, 0, panelHostNoMove|panelHostNoSize|panelHostNoActivate|panelHostFrameChanged); ok == 0 {
++					err = callErr
++				}
++			}
++			if err != nil {
++				// Close the detached, unusable surface and rebuild from current needs.
++				a.panel.Destroy()
++				a.newPanel()
++			}
++		}
++	}
++	a.placePanel()
++	a.fitPanel()
++	if show {
++		a.panel.ShowInactive()
++	} else {
++		a.closeShot()
++	}
++}
++
++func setPanelHostLong(window, index, value uintptr) error {
++	panelHostClearError.Call(0)
++	previous, _, err := panelHostSetLong.Call(window, index, value)
++	if previous == 0 && err != windows.ERROR_SUCCESS {
++		return err
++	}
++	return nil
++}
++
++func positionHostedPanel(window uintptr, anchor panelHostRect, width, height int) error {
++	ok, _, err := panelHostSetPosition.Call(window, panelHostTopmost, uintptr(int64(anchor.X)), uintptr(int64(anchor.Y)), uintptr(width), uintptr(height), panelHostNoActivate)
++	if ok == 0 {
++		return err
++	}
++	return nil
++}
++
++func validatePanelHostWindow(spec panelHostSpec, panel uintptr) error {
++	window := uintptr(spec.HWND)
++	if window == panel || spec.PID == os.Getpid() {
++		return errors.New("host must be a separate process")
++	}
++	if ok, _, _ := panelHostIsWindow.Call(window); ok == 0 {
++		return errors.New("host window is unavailable")
++	}
++	var pid uint32
++	panelHostWindowPID.Call(window, uintptr(unsafe.Pointer(&pid)))
++	if pid != uint32(spec.PID) {
++		return errors.New("host process does not match its window")
++	}
++	birth, err := panelHostBirth(spec.PID)
++	if err != nil {
++		return fmt.Errorf("read host process creation time: %w", err)
++	}
++	if birth != spec.ProcessBirthFileTime {
++		return errors.New("host process creation time does not match")
++	}
++	if spec.Visible {
++		if visible, _, _ := panelHostIsVisible.Call(window); visible == 0 {
++			return errPanelHostHidden
++		}
++	}
++	dpi, _, _ := panelHostGetDPI.Call(window)
++	hostContext, _, _ := panelHostDPIContext.Call(window)
++	panelContext, _, _ := panelHostDPIContext.Call(panel)
++	equal, _, _ := panelHostDPIEqual.Call(hostContext, panelContext)
++	if dpi != uintptr(spec.DPI) || hostContext == 0 || panelContext == 0 || equal == 0 {
++		return errors.New("host DPI does not match")
++	}
++	var rect struct{ Left, Top, Right, Bottom int32 }
++	var point struct{ X, Y int32 }
++	if ok, _, err := panelHostGetRect.Call(window, uintptr(unsafe.Pointer(&rect))); ok == 0 {
++		return fmt.Errorf("read host client rectangle: %w", err)
++	}
++	if ok, _, err := panelHostToScreen.Call(window, uintptr(unsafe.Pointer(&point))); ok == 0 {
++		return fmt.Errorf("read host screen position: %w", err)
++	}
++	expected := spec.ClientRectPhysical
++	if point.X != expected.X || point.Y != expected.Y || int64(rect.Right)-int64(rect.Left) != int64(expected.Width) || int64(rect.Bottom)-int64(rect.Top) != int64(expected.Height) {
++		return errPanelHostLayout
++	}
++	return nil
++}
++
++func panelHostBirth(pid int) (uint64, error) {
++	process, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
++	if err != nil {
++		return 0, err
++	}
++	defer windows.CloseHandle(process)
++	var created, exited, kernel, user windows.Filetime
++	if err := windows.GetProcessTimes(process, &created, &exited, &kernel, &user); err != nil {
++		return 0, err
++	}
++	return uint64(created.HighDateTime)<<32 | uint64(created.LowDateTime), nil
++}
++
++func validatePanelHostDirectory(directory string) error {
++	if !filepath.IsAbs(directory) {
++		return errors.New("host directory must be absolute")
++	}
++	volume, err := windows.UTF16PtrFromString(filepath.VolumeName(directory) + string(filepath.Separator))
++	if err != nil {
++		return err
++	}
++	if kind, _, _ := panelHostDriveType.Call(uintptr(unsafe.Pointer(volume))); kind != windows.DRIVE_FIXED {
++		return errors.New("host directory must be on a local fixed drive")
++	}
++	local, err := windows.KnownFolderPath(windows.FOLDERID_LocalAppData, 0)
++	if err != nil {
++		return err
++	}
++	relative, err := filepath.Rel(local, directory)
++	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
++		return errors.New("host directory must be in the current user's local data directory")
++	}
++	return panelHostNoReparse(directory)
++}
++
++func panelHostNoReparse(path string) error {
++	for current := filepath.Clean(path); ; current = filepath.Dir(current) {
++		name, err := windows.UTF16PtrFromString(current)
++		if err != nil {
++			return err
++		}
++		attributes, err := windows.GetFileAttributes(name)
++		if err != nil && !os.IsNotExist(err) {
++			return err
++		}
++		if err == nil && attributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
++			return errors.New("host path contains a reparse point")
++		}
++		if parent := filepath.Dir(current); parent == current {
++			return nil
++		}
++	}
++}
++
++func readPanelHost(directory string, now time.Time) (panelHostSpec, error) {
++	if err := validatePanelHostDirectory(directory); err != nil {
++		return panelHostSpec{}, err
++	}
++	path := filepath.Join(directory, "host.json")
++	if err := panelHostNoReparse(path); err != nil {
++		return panelHostSpec{}, err
++	}
++	file, err := openPanelHostFile(path)
++	if err != nil {
++		return panelHostSpec{}, err
++	}
++	defer file.Close()
++	data, err := io.ReadAll(io.LimitReader(file, panelHostMaxBytes+1))
++	if err != nil {
++		return panelHostSpec{}, err
++	}
++	return parsePanelHost(data, now)
++}
++
++func readSidebarAppearanceFile(path string, maximum int64) ([]byte, error) {
++	if err := validatePanelHostDirectory(filepath.Dir(path)); err != nil {
++		return nil, err
++	}
++	if err := panelHostNoReparse(path); err != nil {
++		return nil, err
++	}
++	file, err := openPanelHostFile(path)
++	if err != nil {
++		return nil, err
++	}
++	defer file.Close()
++	data, err := io.ReadAll(io.LimitReader(file, maximum+1))
++	if err != nil {
++		return nil, err
++	}
++	if int64(len(data)) > maximum {
++		return nil, errors.New("appearance file exceeds its size limit")
++	}
++	return data, nil
++}
++
++// Readers keep atomic replacement available while they hold the old snapshot.
++func openPanelHostFile(path string) (*os.File, error) {
++	name, err := windows.UTF16PtrFromString(path)
++	if err != nil {
++		return nil, err
++	}
++	handle, err := windows.CreateFile(name, windows.GENERIC_READ, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
++	if err != nil {
++		return nil, err
++	}
++	var info windows.ByHandleFileInformation
++	if err := windows.GetFileInformationByHandle(handle, &info); err != nil {
++		windows.CloseHandle(handle)
++		return nil, err
++	}
++	if info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
++		windows.CloseHandle(handle)
++		return nil, errors.New("host file is a reparse point")
++	}
++	return os.NewFile(uintptr(handle), path), nil
++}
++
++func (a *app) publishPanelHost(phase, reason string) error {
++	host := a.panelHost
++	if host == nil || host.blocked || host.nonce == "" {
++		return nil
++	}
++	if err := validatePanelHostDirectory(host.directory); err != nil {
++		host.recordError(err)
++		return err
++	}
++	host.sequence++
++	width, height := a.panelSize()
++	state := panelHostPublication{
++		Schema: "pinky.sidebar-panel.v1", Nonce: host.nonce, Sequence: host.sequence,
++		PID: os.Getpid(), ProcessBirthFileTime: strconv.FormatUint(host.processBirth, 10),
++		UpdatedUTC: time.Now().UTC().Format(time.RFC3339Nano), Phase: phase,
++		DesiredWidthDIP: width, DesiredHeightDIP: height, Reason: reason,
++	}
++	if a.panel != nil && !a.panel.IsDestroyed() {
++		state.PanelHWND = fmt.Sprintf("0x%x", a.panel.NativeHandle())
++	}
++	data, err := json.Marshal(state)
++	if err != nil {
++		return err
++	}
++	file, err := os.CreateTemp(host.directory, ".panel-*.tmp")
++	if err != nil {
++		host.recordError(err)
++		return err
++	}
++	name := file.Name()
++	defer os.Remove(name)
++	if _, err := file.Write(data); err != nil {
++		file.Close()
++		host.recordError(err)
++		return err
++	}
++	if err := file.Close(); err != nil {
++		host.recordError(err)
++		return err
++	}
++	err = replacePanelHostFile(name, filepath.Join(host.directory, "panel.json"))
++	host.recordError(err)
++	return err
++}
++
++func replacePanelHostFile(source, destination string) error {
++	if err := panelHostNoReparse(destination); err != nil {
++		return err
++	}
++	from, err := windows.UTF16PtrFromString(source)
++	if err != nil {
++		return err
++	}
++	to, err := windows.UTF16PtrFromString(destination)
++	if err != nil {
++		return err
++	}
++	if _, err := os.Lstat(destination); os.IsNotExist(err) {
++		return windows.MoveFileEx(from, to, windows.MOVEFILE_WRITE_THROUGH)
++	} else if err != nil {
++		return err
++	}
++	ok, _, err := panelHostReplaceFile.Call(uintptr(unsafe.Pointer(to)), uintptr(unsafe.Pointer(from)), 0, 0, 0, 0)
++	if ok == 0 {
++		return &os.LinkError{Op: "replace", Old: source, New: destination, Err: err}
++	}
++	return nil
++}
+diff --git a/ui/panel_host_windows_test.go b/ui/panel_host_windows_test.go
+new file mode 100644
+index 0000000..291d0d8
+--- /dev/null
++++ b/ui/panel_host_windows_test.go
+@@ -0,0 +1,58 @@
++package ui
++
++import (
++	"fmt"
++	"os"
++	"path/filepath"
++	"testing"
++
++	"golang.org/x/sys/windows"
++)
++
++func TestPanelHostReaderAllowsAtomicReplacement(t *testing.T) {
++	directory := t.TempDir()
++	path := filepath.Join(directory, "host.json")
++	if err := os.WriteFile(path, []byte("old snapshot"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	reader, err := openPanelHostFile(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer reader.Close()
++	replacement := filepath.Join(directory, "next.tmp")
++	if err := os.WriteFile(replacement, []byte("next snapshot"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	if err := replacePanelHostFile(replacement, path); err != nil {
++		t.Fatalf("an open metadata reader blocked atomic replacement: %v", err)
++	}
++	data, err := os.ReadFile(path)
++	if err != nil || string(data) != "next snapshot" {
++		t.Fatalf("replacement was not published: %q, %v", data, err)
++	}
++}
++
++func TestPanelHostAccessDenialStopsConnection(t *testing.T) {
++	for _, denied := range []error{os.ErrPermission, windows.ERROR_ACCESS_DENIED, fmt.Errorf("identity check: %w", windows.ERROR_ACCESS_DENIED)} {
++		host := &panelHost{}
++		host.recordError(denied)
++		if !host.blocked {
++			t.Fatalf("access denial did not stop the connection: %v", denied)
++		}
++		host.recordError(nil)
++		if !host.blocked {
++			t.Fatal("a later successful operation cleared the access-denial latch")
++		}
++	}
++}
++
++func TestPanelHostTransientErrorsDoNotStopConnection(t *testing.T) {
++	host := &panelHost{}
++	for _, err := range []error{nil, os.ErrNotExist, windows.ERROR_SHARING_VIOLATION} {
++		host.recordError(err)
++		if host.blocked {
++			t.Fatalf("transient error stopped the connection: %v", err)
++		}
++	}
++}
+diff --git a/ui/panel_narrow_test.go b/ui/panel_narrow_test.go
+new file mode 100644
+index 0000000..1bbfe7c
+--- /dev/null
++++ b/ui/panel_narrow_test.go
+@@ -0,0 +1,156 @@
++package ui
++
++import (
++	"errors"
++	"testing"
++	"time"
++
++	mg "github.com/egoist/mygo/ui"
++
++	"github.com/DIYgod/pinky/cmd/pinky/locales"
++	"github.com/DIYgod/pinky/internal/gateway"
++)
++
++func TestSidebarHandoffPendingAndRetryFeedback(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	delete(ta.noting, n.ID)
++	ta.panelHost = &panelHost{}
++	release := make(chan error, 1)
++	defer close(release)
++	ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(string, gateway.Decision, string) error {
++		return <-release
++	}}
++	ta.decide(n, gateway.AllowOnce, "")
++	tt := mg.NewTester(ta.panelView, panelHostW, panelHostH)
++	if !hasText(tt, locales.NeedsSubmitting()) || hasText(tt, locales.PanelHandedBack()) {
++		t.Fatalf("compact pending feedback: %q", tt.Texts())
++	}
++	release <- errors.New("fixture response failed")
++	waitHandoffPosts(t, ta, func() bool { return !ta.handoffReplies[n.ID].pending })
++	tt = mg.NewTester(ta.panelView, panelHostW, panelHostH)
++	if !hasText(tt, "fixture response failed") || !hasText(tt, locales.NeedsDone()) || hasText(tt, locales.PanelHandedBack()) {
++		t.Fatalf("compact retry feedback: %q", tt.Texts())
++	}
++}
++
++type sidebarDecisionCall struct {
++	id       string
++	decision gateway.Decision
++}
++
++type sidebarRecordingAPI struct {
++	gateway.API
++	calls chan sidebarDecisionCall
++}
++
++func (api *sidebarRecordingAPI) Decide(id string, decision gateway.Decision, note string) error {
++	api.calls <- sidebarDecisionCall{id: id, decision: decision}
++	return nil
++}
++
++func sidebarNeedTest(id, title string) gateway.NeedView {
++	now := time.Now()
++	return gateway.NeedView{
++		ID: id, Kind: gateway.NeedApproval, DeviceID: "pixel-9", DeviceName: "Pixel 9",
++		App: "Dinely", Agent: "Codex", Title: title, Detail: "Place the lunch order",
++		Created: now, Deadline: now.Add(time.Minute),
++	}
++}
++
++func TestSidebarNoticeExpandsAndInvokesPrimaryOnce(t *testing.T) {
++	n := sidebarNeedTest("need-one", "Pay $12.80?")
++	ta := shotApp(t, n)
++	recorder := &sidebarRecordingAPI{API: ta.app.api, calls: make(chan sidebarDecisionCall, 1)}
++	ta.app.api = recorder
++	ta.panelHost = &panelHost{}
++	tt := mg.NewTester(ta.panelView, panelHostW, panelNoticeHeight(n))
++	if !hasText(tt, "Pixel 9 · Dinely") || !hasText(tt, n.Title) {
++		t.Fatalf("notice omits live Need identity or title: %q", tt.Texts())
++	}
++	if err := tt.Click(n.ID + " " + n.Title); err != nil {
++		t.Fatal(err)
++	}
++	if ta.panelExpandedNeedID != n.ID {
++		t.Fatalf("body click expanded %q, want %q", ta.panelExpandedNeedID, n.ID)
++	}
++	_, expandedHeight := ta.panelSize()
++	tt = mg.NewTester(ta.panelView, panelHostW, expandedHeight)
++	if !hasText(tt, n.Detail) {
++		t.Fatalf("expanded panel omits Need details: %q", tt.Texts())
++	}
++	if err := tt.Click(locales.TasksDetails()); err != nil {
++		t.Fatal(err)
++	}
++	tt = mg.NewTester(ta.panelView, panelHostW, panelHostH)
++	if err := tt.Click(locales.NeedsAllow()); err != nil {
++		t.Fatal(err)
++	}
++	if len(ta.answered) != 1 || ta.answered[0].need.ID != n.ID || ta.answered[0].d != gateway.AllowOnce {
++		t.Fatalf("primary action did not answer the displayed Need once: %+v", ta.answered)
++	}
++	// This fixture verifies the UI-to-API contract, without claiming a real task completed.
++	select {
++	case call := <-recorder.calls:
++		if call.id != n.ID || call.decision != gateway.AllowOnce {
++			t.Fatalf("primary callback sent the wrong request or scope: %+v", call)
++		}
++	case <-time.After(time.Minute):
++		t.Fatal("primary callback did not reach the recording API")
++	}
++	if _, h := ta.panelSize(); h != panelHostH {
++		t.Fatalf("answer confirmation changed the compact strip height to %d", h)
++	}
++}
++
++func TestSidebarNoticeNewNeedResetsExpandedAndPressedAction(t *testing.T) {
++	first := sidebarNeedTest("need-one", "Pay $12.80?")
++	second := sidebarNeedTest("need-two", "Delete this draft?")
++	ta := shotApp(t, first)
++	ta.panelHost = &panelHost{}
++	tt := mg.NewTester(ta.panelView, panelHostW, panelNoticeHeight(first))
++	button, ok := tt.Find(locales.NeedsAllow())
++	if !ok {
++		t.Fatalf("allow button missing from notice: %q", tt.Texts())
++	}
++	x, y := button.X+button.W/2, button.Y+button.H/2
++	tt.Press(x, y)
++	ta.needs = []gateway.NeedView{second}
++	tt.Frame()
++	tt.Release(x, y)
++	if len(ta.answered) != 0 {
++		t.Fatalf("old pressed button answered a new Need: %+v", ta.answered)
++	}
++	if ta.panelExpandedNeedID != "" || ta.panelNeedID != second.ID {
++		t.Fatalf("new Need state was not reset: current=%q expanded=%q", ta.panelNeedID, ta.panelExpandedNeedID)
++	}
++	tt.Frame()
++	if !hasText(tt, second.Title) {
++		t.Fatalf("new Need was not shown in the notice state: %q", tt.Texts())
++	}
++}
++
++func TestSidebarPanelCornersStayTransparent(t *testing.T) {
++	for _, expanded := range []bool{false, true} {
++		n := sidebarNeedTest("corner-need", "Review this operation")
++		ta := shotApp(t, n)
++		ta.panelHost = &panelHost{}
++		if expanded {
++			ta.panelNeedExpanded(n.ID)
++			ta.panelExpandedNeedID = n.ID
++		}
++		width, height := ta.panelSize()
++		tt := mg.NewTester(ta.panelView, width, height)
++		img := tt.Image()
++		for _, point := range [][2]int{{0, 0}, {3, 3}, {width - 1, 0}, {width - 4, 3},
++			{0, height - 1}, {3, height - 4}, {width - 1, height - 1}, {width - 4, height - 4}} {
++			if alpha := img.RGBAAt(point[0], point[1]).A; alpha != 0 {
++				t.Fatalf("expanded=%v: outside corner %v contains a stray layer with alpha %d", expanded, point, alpha)
++			}
++		}
++	}
++	// GlassSurface.Paint uses this quiet edge on the adjacent sidebar cards.
++	edge := sidebarGlassEdge()
++	if edge.From != mg.RGBA(255, 255, 255, 88.0/255) || edge.To != mg.RGBA(255, 255, 255, 22.0/255) {
++		t.Fatal("notification edge diverged from the neighboring card edge")
++	}
++}
+diff --git a/ui/rightpanel.go b/ui/rightpanel.go
+index 42656aa..8cb5498 100644
+--- a/ui/rightpanel.go
++++ b/ui/rightpanel.go
+@@ -173,6 +173,22 @@ func needEyebrow(c *mg.Context, n gateway.NeedView) {
+ // On a locked phone, unlocking from the computer is the first step.
+ func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
+ 	p := pal(c)
++	reply := a.handoffReplies[n.ID]
++	busy := reply != nil && (reply.pending || reply.completed)
++	if reply != nil {
++		switch {
++		case reply.pending:
++			mg.Text(c, locales.NeedsSubmitting()).FontSize(fsSmall).TextColor(p.ink2).Margin(8, 0, 0, 0)
++		case reply.message != "":
++			mg.Text(c, reply.message).FontSize(fsSmall).TextColor(p.red).MaxLines(3).Tooltip(reply.message).Margin(8, 0, 0, 0)
++		case reply.completed:
++			label := locales.PanelHandedBack()
++			if reply.decision == gateway.Deny {
++				label = locales.PanelDeclined()
++			}
++			mg.Text(c, label).FontSize(fsSmall).TextColor(p.green).Margin(8, 0, 0, 0)
++		}
++	}
+ 	agent := agentOf(n)
+ 	locked := a.unlocks[n.DeviceID]
+ 	// The person took over and the agent waits for them to hand back.
+@@ -222,17 +238,17 @@ func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
+ 	declineButton := locked || holding || setup
+ 	mg.Grid(c).Columns(2).Gap(8).Margin(12, 0, 0, 0).Children(func() {
+ 		if declineButton {
+-			if button(c, locales.NeedsDecline(), btnOpt{}).Tooltip(locales.NeedsDeclineTooltip(agent)).Clicked() {
++			if button(c, locales.NeedsDecline(), btnOpt{}).Disabled(busy).Tooltip(locales.NeedsDeclineTooltip(agent)).Clicked() {
+ 				a.decide(n, gateway.Deny, note)
+ 			}
+-		} else if button(c, locales.PhoneTakeOver(), btnOpt{}).Tooltip(locales.NeedsTakeOverTooltip()).Clicked() {
++		} else if button(c, locales.PhoneTakeOver(), btnOpt{}).Disabled(busy).Tooltip(locales.NeedsTakeOverTooltip()).Clicked() {
+ 			a.decide(n, gateway.TakeOver, "")
+ 		}
+ 		done := btnOpt{kind: btnPrimary}
+ 		if locked {
+ 			done = btnOpt{}
+ 		}
+-		if button(c, locales.NeedsDone(), done).Tooltip(locales.NeedsDoneTooltip(agent)).Clicked() {
++		if button(c, locales.NeedsDone(), done).Disabled(busy).Tooltip(locales.NeedsDoneTooltip(agent)).Clicked() {
+ 			a.decide(n, gateway.AllowOnce, note)
+ 		}
+ 	})
+@@ -240,7 +256,7 @@ func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
+ 		if !noting && linkButton(c, locales.NeedsAddNote()).Clicked() {
+ 			a.noting[n.ID] = true
+ 		}
+-		if !declineButton && linkButton(c, locales.NeedsDecline()).Tooltip(locales.NeedsDeclineTooltip(agent)).Clicked() {
++		if !declineButton && linkButton(c, locales.NeedsDecline()).Disabled(busy).Tooltip(locales.NeedsDeclineTooltip(agent)).Clicked() {
+ 			a.decide(n, gateway.Deny, note)
+ 		}
+ 	})
+diff --git a/ui/run.go b/ui/run.go
+index 8d9fcb5..a6f9cbd 100644
+--- a/ui/run.go
++++ b/ui/run.go
+@@ -249,10 +249,11 @@ type app struct {
+ 	ctx context.Context
+ 	end context.CancelFunc
+ 
+-	main   *mygo.Window
+-	panel  *mygo.Window
+-	flyout *mygo.Window
+-	tray   *mygo.Tray
++	main      *mygo.Window
++	panel     *mygo.Window
++	panelHost *panelHost
++	flyout    *mygo.Window
++	tray      *mygo.Tray
+ 
+ 	devices []gateway.DeviceView
+ 	tasks   []gateway.TaskView
+@@ -275,13 +276,17 @@ type app struct {
+ 	shotOpen string
+ 	panelMax int // the floating panel's height at most, on its display
+ 
+-	noting   map[string]bool   // needs whose Deny with a note is open
+-	notes    map[string]string // the notes
+-	details  map[string]bool   // tasks whose technical details show
+-	answered []answer          // recent answers the approval panel shows
+-	panelIdx int               // the approval the floating panel shows
+-	notified map[string]bool   // needs a notification went out for
+-	seenNeed map[string]bool
++	noting              map[string]bool // needs whose Deny with a note is open
++	panelNeedID         string          // Need shown by the host panel's current view
++	panelExpandedNeedID string          // Need whose details are expanded in the host panel
++	panelSeenNeed       map[string]bool
++	notes               map[string]string // the notes
++	details             map[string]bool   // tasks whose technical details show
++	answered            []answer          // recent answers the approval panel shows
++	panelIdx            int               // the approval the floating panel shows
++	notified            map[string]bool   // needs a notification went out for
++	seenNeed            map[string]bool
++	handoffReplies      map[string]*handoffReply
+ 
+ 	settings Settings
+ 	// reported is what the next change reports as the settings before it:
+@@ -397,7 +402,7 @@ func newApp(api gateway.API, opt Options) *app {
+ 		sel:     "",
+ 		mirrors: map[string]*mirror{}, shots: map[string]*mg.Bitmap{},
+ 		noting: map[string]bool{}, notes: map[string]string{}, details: map[string]bool{},
+-		notified: map[string]bool{}, seenNeed: map[string]bool{}, unlocks: map[string]bool{}, more: map[string]bool{},
++		notified: map[string]bool{}, seenNeed: map[string]bool{}, panelSeenNeed: map[string]bool{}, unlocks: map[string]bool{}, more: map[string]bool{},
+ 		callQueue:  map[string]chan func(){},
+ 		mediaCache: map[string]*mediaEntry{}, previews: map[string]bool{},
+ 		awake: keepAwake, awayAwake: keepAwakeAway, exportTo: exportFolder, reveal: revealFile,
+@@ -445,8 +450,12 @@ func (a *app) ready() {
+ 	a.applySettings()
+ 	a.afterRefresh(true)
+ 
++	windowTitle := "Pinky"
++	if a.opt.Version == "0.0.0-demo" {
++		windowTitle = "Pinky · Sidebar simulation"
++	}
+ 	a.main = mygo.NewWindow(mygo.WindowOptions{
+-		Title: "Pinky", Width: 1280, Height: 820, MinWidth: 960, MinHeight: 620,
++		Title: windowTitle, Width: 1280, Height: 820, MinWidth: 960, MinHeight: 620,
+ 		StateKey: "main", TitleBarStyle: mygo.TitleBarHidden, Hidden: a.opt.Hidden,
+ 		TrafficLightPosition: &mygo.Point{X: 18, Y: 19},
+ 		BackgroundColor:      "light-dark(#f7f7f8, #212125)",
+@@ -482,6 +491,7 @@ func (a *app) ready() {
+ 	a.main.OnBlur(func() { a.focused = false; a.syncPanel() })
+ 	a.focused = a.main.IsFocused()
+ 
++	a.startPanelHost()
+ 	a.newPanel()
+ 	if !a.opt.NoTray {
+ 		a.newTray()
+@@ -509,6 +519,7 @@ func (a *app) ready() {
+ }
+ 
+ func (a *app) shutdown() {
++	a.stopPanelHost()
+ 	a.end()
+ 	a.setAwake(false)
+ 	a.setAwayAwake(false)
+@@ -810,6 +821,11 @@ func (a *app) setNeeds(n []gateway.NeedView) {
+ 			a.openForNeed(x)
+ 		}
+ 	}
++	for id := range a.handoffReplies {
++		if !live[id] {
++			delete(a.handoffReplies, id)
++		}
++	}
+ 	for id := range a.shots {
+ 		if !live[id] {
+ 			delete(a.shots, id)
+@@ -880,7 +896,7 @@ func (a *app) needsOf(deviceID string) []gateway.NeedView {
+ 
+ // call runs a gateway call off the main thread, one at a time per
+ // device so the person's input keeps its order, and shows its error.
+-func (a *app) call(deviceID, what string, fn func() error) {
++func (a *app) call(deviceID, what string, fn func() error) bool {
+ 	a.callMu.Lock()
+ 	q, ok := a.callQueue[deviceID]
+ 	if !ok {
+@@ -901,8 +917,10 @@ func (a *app) call(deviceID, what string, fn func() error) {
+ 	}
+ 	select {
+ 	case q <- job:
++		return true
+ 	default:
+-		// The gateway stopped answering; drop rather than block the UI.
++		// Let critical actions keep their card and explain that a retry is needed.
++		return false
+ 	}
+ }
+ 
+@@ -918,14 +936,61 @@ func (a *app) selectPhone(id string) {
+ }
+ 
+ func (a *app) decide(n gateway.NeedView, d gateway.Decision, note string) {
+-	a.remember(n, d, note)
+-	a.call(n.DeviceID, locales.CallAnswer(), func() error {
++	var reply *handoffReply
++	if n.Kind == gateway.NeedHandoff {
++		current := false
++		for _, live := range a.needs {
++			if live.ID == n.ID && live.Kind == n.Kind && live.DeviceID == n.DeviceID && live.TaskID == n.TaskID {
++				current = true
++				break
++			}
++		}
++		if !current {
++			a.toasts = append(a.toasts, locales.NeedsRequestChanged())
++			return
++		}
++		if prior := a.handoffReplies[n.ID]; prior != nil && (prior.pending || prior.completed) {
++			return
++		}
++		if a.handoffReplies == nil {
++			a.handoffReplies = make(map[string]*handoffReply)
++		}
++		reply = &handoffReply{pending: true, decision: d}
++		a.handoffReplies[n.ID] = reply
++	} else {
++		a.remember(n, d, note)
++	}
++	queued := a.call(n.DeviceID, locales.CallAnswer(), func() error {
+ 		err := a.api.Decide(n.ID, d, note)
++		if reply != nil {
++			a.post(func() {
++				// A newer request or snapshot may have replaced this card while it waited.
++				if a.handoffReplies[n.ID] != reply {
++					return
++				}
++				reply.pending = false
++				if err != nil {
++					reply.message = locales.ToastCouldNot(locales.CallAnswer(), err.Error())
++					return
++				}
++				if d == gateway.TakeOver {
++					// Taking over keeps the handoff open, so Done must remain available.
++					delete(a.handoffReplies, n.ID)
++					return
++				}
++				reply.completed = true
++				a.remember(n, d, note)
++			})
++		}
+ 		if d == gateway.AllowAlways {
+ 			a.post(a.always.stale) // Settings › Safety lists it now
+ 		}
+ 		return err
+ 	})
++	if !queued && reply != nil {
++		reply.pending = false
++		reply.message = locales.NeedsAnswerQueueFull()
++	}
+ 	if d == gateway.TakeOver {
+ 		a.selectPhone(n.DeviceID)
+ 		a.showMain()
+diff --git a/ui/sidebar_appearance_other.go b/ui/sidebar_appearance_other.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..beb6ae8c75d52d47ef3f2aaf757cfdf6a70c76c1
+GIT binary patch
+literal 147
+zcmV~$u?oUK3;@u%0skR(YN6Og9NZl0=;A02*Iq2anjE<tRm6Yyy}qCII2K+aZdaD5
+zYu>;HQkb4$CM*oVucYSKKviq5p#^vpnb0W2D@PiGol>G;K_)u$LQQsKnLA|h!@kAl
+hb{{`Z9g>+^i(jaWyqKWy(xK+vV0KX--kcqN@CTkYFbx0z
+
+literal 0
+HcmV?d00001
+
+diff --git a/ui/style.go b/ui/style.go
+index 9e5bc52..40398ed 100644
+--- a/ui/style.go
++++ b/ui/style.go
+@@ -1,6 +1,12 @@
+ package ui
+ 
+ import (
++	"encoding/json"
++	"errors"
++	"os"
++	"path/filepath"
++	"strings"
++	"sync"
+ 	"time"
+ 
+ 	mg "github.com/egoist/mygo/ui"
+@@ -11,7 +17,8 @@ import (
+ // brand's lemon and watermelon, and the brand's watermelon added for the
+ // selection mark and the focus ring.
+ type palette struct {
+-	dark bool
++	dark    bool
++	sidebar bool
+ 
+ 	bg, bg2, bg3, sel, panel mg.Color
+ 	line, line2              mg.Color
+@@ -115,12 +122,189 @@ const headerHeight = 52
+ 
+ // pal returns the palette of the theme the view builds with.
+ func pal(c *mg.Context) *palette {
++	if p := sidebarPaletteForContext(c); p != nil {
++		return p
++	}
+ 	if c.Theme().Dark {
+ 		return &darkPalette
+ 	}
+ 	return &lightPalette
+ }
+ 
++type sidebarAppearance struct {
++	Schema string `json:"schema"`
++	Theme  string `json:"theme"`
++}
++
++var sidebarAppearanceCache = struct {
++	sync.Mutex
++	checked  time.Time
++	name     string
++	disabled bool
++}{name: "tide"}
++
++func validSidebarTheme(name string) string {
++	switch strings.ToLower(strings.TrimSpace(name)) {
++	case "pine", "iris", "amber":
++		return strings.ToLower(strings.TrimSpace(name))
++	default:
++		return "tide"
++	}
++}
++
++func sidebarThemeName() string {
++	now := time.Now()
++	sidebarAppearanceCache.Lock()
++	defer sidebarAppearanceCache.Unlock()
++	if now.Sub(sidebarAppearanceCache.checked) < 500*time.Millisecond {
++		return sidebarAppearanceCache.name
++	}
++	name := validSidebarTheme(os.Getenv("PINKY_SIDEBAR_THEME"))
++	if !sidebarAppearanceCache.disabled {
++		if directory := os.Getenv("PINKY_PANEL_HOST_DIR"); directory != "" {
++			data, err := readSidebarAppearanceFile(filepath.Join(directory, "appearance.json"), 4096)
++			if errors.Is(err, os.ErrPermission) {
++				sidebarAppearanceCache.disabled = true
++			} else if err == nil && len(data) <= 4096 {
++				var appearance sidebarAppearance
++				if json.Unmarshal(data, &appearance) == nil && appearance.Schema == "pinky.sidebar-appearance.v1" {
++					switch appearance.Theme {
++					case "tide", "pine", "iris", "amber":
++						name = appearance.Theme
++					}
++				}
++			}
++		}
++	}
++	sidebarAppearanceCache.checked = now
++	sidebarAppearanceCache.name = name
++	return name
++}
++
++type sidebarColors struct {
++	top, base, face, text, secondary, accent string
++}
++
++func colorsForSidebarTheme(name string) sidebarColors {
++	switch validSidebarTheme(name) {
++	case "pine":
++		return sidebarColors{"#2d4f41", "#19352c", "#8bc7a2", "#eef5f7", "#c3d8cf", "#6abb9a"}
++	case "iris":
++		return sidebarColors{"#493958", "#31253c", "#be9dda", "#f4eef9", "#cfc2dc", "#ba93d8"}
++	case "amber":
++		return sidebarColors{"#524135", "#372b23", "#d6b383", "#f7efe6", "#dbc9b6", "#d5a575"}
++	default:
++		return sidebarColors{"#304a5c", "#1c2f3e", "#8ebcdc", "#eef5f7", "#c3d3df", "#6baee8"}
++	}
++}
++
++func sidebarThemePalette(name string) *palette {
++	colors := colorsForSidebarTheme(name)
++	top, base := mg.Hex(colors.top), mg.Hex(colors.base)
++	face, ink, muted := mg.Hex(colors.face), mg.Hex(colors.text), mg.Hex(colors.secondary)
++	accent := mg.Hex(colors.accent)
++	accentButton := accent.Mix(base, 0.50)
++	return &palette{
++		dark: true, sidebar: true,
++		bg: mg.Transparent, bg2: top, bg3: face.Alpha(0.18), sel: face.Alpha(0.24), panel: mg.Transparent,
++		line: accent.Alpha(0.30), line2: accent.Alpha(0.42),
++		ink: ink, ink2: muted, ink3: muted.Alpha(0.82),
++		accent: accent, accentInk: face, accentBtn: accentButton, accentTint: accent.Alpha(0.16),
++		amber: face, amberDot: accent, amberTint: mg.Transparent, amberLine: accent.Alpha(0.42), amberEdge: face,
++		red: mg.Hex("#ef8c83"), redTint: base.Mix(mg.Hex("#ef8c83"), 0.18), redLine: mg.Hex("#ef8c83").Alpha(0.40),
++		green: face, ovl: accent, phone: base,
++		brand: face, lemon: face, shadowLo: mg.RGBA(0, 0, 0, 0.16), shadowHi: mg.RGBA(0, 0, 0, 0.24), white: ink,
++	}
++}
++
++func sidebarPaletteForContext(c *mg.Context) *palette {
++	if c == nil || c.Theme() == nil {
++		return nil
++	}
++	for _, name := range []string{"tide", "pine", "iris", "amber"} {
++		colors := colorsForSidebarTheme(name)
++		if c.Theme().Background == mg.Transparent && c.Theme().Surface == mg.Hex(colors.top) && c.Theme().Focus == mg.Hex(colors.face) {
++			return sidebarThemePalette(name)
++		}
++	}
++	return nil
++}
++
++func applySidebarOverlayTheme(c *mg.Context) *palette {
++	name := sidebarThemeName()
++	p := sidebarThemePalette(name)
++	colors := colorsForSidebarTheme(name)
++	t := *c.Theme()
++	t.Dark = true
++	t.Background, t.Surface = mg.Transparent, p.bg2
++	t.SurfaceHover, t.SurfacePressed = p.bg3, p.sel
++	t.Border, t.Text, t.TextMuted = p.line2, p.ink, p.ink2
++	t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = p.accentBtn, p.accentBtn, p.accentBtn, p.white
++	t.InactiveAccent = t.Accent
++	t.Danger, t.Warning, t.Success = p.red, p.amberDot, p.green
++	t.Focus = mg.Hex(colors.face)
++	t.Selection = p.accent.Alpha(0.28)
++	t.FontSize, t.Radius, t.Spacing = 14, 10, 4
++	c.SetTheme(&t)
++	return p
++}
++
++func paintSidebarGlass(pt *mg.Painter, r mg.Rect, p *palette, radius float32) {
++	colors := colorsForSidebarTheme(sidebarThemeFromPalette(p))
++	top, base, face := mg.Hex(colors.top), mg.Hex(colors.base), mg.Hex(colors.face)
++	pt.FillGradient(r, mg.LinearGradient{From: top.Alpha(188.0 / 255), To: base.Alpha(204.0 / 255), Angle: 180}, radius)
++	pt.Clip(r, radius, func() {
++		sheen := mg.Rect{X: r.X, Y: r.Y - 4, W: r.W, H: min(float32(160), r.H+4)}
++		pt.FillGradient(sheen, mg.LinearGradient{From: mg.RGBA(255, 255, 255, 64.0/255), To: mg.Transparent, Angle: 180}, 0)
++		fillGlow := func(cx, cy, rx, ry float32, color mg.Color, alpha float32) {
++			pt.Transform(mg.Scaling(1, ry/rx), cx, cy, func() {
++				circle := mg.Rect{X: cx - rx, Y: cy - rx, W: rx * 2, H: rx * 2}
++				pt.FillRadialGradient(circle, mg.RadialGradient{Center: mg.Point{X: 0.5, Y: 0.5}, Radius: rx, Stops: []mg.GradientStop{{Color: color.Alpha(alpha), At: 0}, {Color: mg.Transparent, At: 1}}}, 0)
++			})
++		}
++		fillGlow(r.X+r.W*0.72+10, r.Y+30, 100, 90, face, 52.0/255)
++		fillGlow(r.X+r.W*0.04+45, r.Y+r.H*0.30+95, 85, 95, mg.RGB(240, 150, 120), 30.0/255)
++		if r.H > 180 {
++			fillGlow(r.X+r.W*0.50, r.Y+r.H+35, 90, 75, mg.RGB(110, 160, 255), 26.0/255)
++		}
++		cx, cy := r.X+r.W*0.40, r.Y+r.H*0.30
++		extent := r.H + r.W + 400
++		pt.Transform(mg.Rotation(-24), cx, cy, func() {
++			band := mg.Rect{X: cx - 150, Y: cy - extent, W: 300, H: extent * 2}
++			pt.FillGradient(band, mg.LinearGradient{Angle: 90, Stops: []mg.GradientStop{{Color: mg.Transparent, At: 0}, {Color: mg.RGBA(255, 255, 255, 15.0/255), At: 0.5}, {Color: mg.Transparent, At: 1}}}, 0)
++		})
++	})
++}
++
++func sidebarThemeFromPalette(p *palette) string {
++	if p == nil || !p.sidebar {
++		return "tide"
++	}
++	for _, name := range []string{"tide", "pine", "iris", "amber"} {
++		colors := colorsForSidebarTheme(name)
++		if p.bg2 == mg.Hex(colors.top) && p.brand == mg.Hex(colors.face) {
++			return name
++		}
++	}
++	return "tide"
++}
++
++func paintLiquidButton(pt *mg.Painter, r mg.Rect, p *palette, primary, hovered, pressed bool) {
++	base, top := p.phone.Alpha(0.78), p.bg2.Alpha(0.82)
++	if primary {
++		base, top = p.accentBtn.Alpha(0.92), p.accentBtn.Mix(p.bg2, 0.20).Alpha(0.94)
++	}
++	if pressed {
++		base = base.Mix(mg.RGB(0, 0, 0), 0.16)
++	} else if hovered {
++		top = top.Mix(p.brand, 0.12)
++	}
++	pt.Shadow(r, 10, 0, 1, 3, 0, mg.RGBA(0, 0, 0, 0.20))
++	pt.FillGradient(r, mg.LinearGradient{From: top, To: base, Angle: 180}, 10)
++	pt.FillGradient(r, mg.LinearGradient{From: mg.RGBA(255, 255, 255, 44.0/255), To: mg.Transparent, Angle: 180}, 10)
++	pt.Stroke(r, p.brand.Alpha(0.62), 10, 1)
++}
++
+ // applyTheme sets the window's theme from the palette, following the
+ // system's appearance (or the one forced in Options).
+ func applyTheme(c *mg.Context) *palette {
+@@ -153,11 +337,12 @@ const (
+ )
+ 
+ type btnOpt struct {
+-	kind  btnKind
+-	small bool
+-	icon  *mg.SVG
+-	label string // accessible name for an icon-only button
+-	dark  bool   // the dark, translucent buttons over a tile
++	kind      btnKind
++	small     bool
++	multiline bool
++	icon      *mg.SVG
++	label     string // accessible name for an icon-only button
++	dark      bool   // the dark, translucent buttons over a tile
+ }
+ 
+ // button draws the prototype's .btn: 34 high, a border, a quiet hover.
+@@ -168,6 +353,9 @@ func button(c *mg.Context, text string, o btnOpt) mg.Element {
+ 	if o.small {
+ 		h, px, r, fs = 28, 10, 7, 13
+ 	}
++	if o.multiline {
++		fs = 12
++	}
+ 	b.Height(h).Padding(0, px).Radius(r)
+ 	bg, border, fg := p.panel, p.line2, p.ink
+ 	hovered := b.Hovered()
+@@ -197,11 +385,23 @@ func button(c *mg.Context, text string, o btnOpt) mg.Element {
+ 			fg = hex("#ffb4a8")
+ 		}
+ 	}
+-	b.Background(bg).Border(1, border).TextColor(fg)
+-	if !o.dark && !p.dark {
+-		// A push button stands a hair off the page, as the system's do.
+-		b.Shadow(0, 1, 1, 0, mg.RGBA(18, 18, 28, 0.04))
++	if p.sidebar {
++		buttonBorder := p.brand.Alpha(0.62)
++		if o.kind == btnRed {
++			buttonBorder = p.red.Alpha(0.64)
++		}
++		b.Background(mg.Transparent).BorderWidth(1).BorderLinearGradient(mg.LinearGradient{From: buttonBorder, To: p.accent.Alpha(0.34), Angle: 180}).
++			Draw(func(pt *mg.Painter, r mg.Rect) {
++				paintLiquidButton(pt, r, p, o.kind == btnPrimary, hovered, b.Pressed())
++			})
++	} else {
++		b.Background(bg).Border(1, border).TextColor(fg)
++		if !o.dark && !p.dark {
++			// A push button stands a hair off the page, as the system's do.
++			b.Shadow(0, 1, 1, 0, mg.RGBA(18, 18, 28, 0.04))
++		}
+ 	}
++	b.TextColor(fg)
+ 	if o.label != "" {
+ 		b.Label(o.label)
+ 	} else if text != "" {
+@@ -212,7 +412,12 @@ func button(c *mg.Context, text string, o btnOpt) mg.Element {
+ 			mg.Icon(c, o.icon).FontSize(18)
+ 		}
+ 		if text != "" {
+-			mg.Text(c, text).FontSize(fs).FontWeight(fwMedium).NoWrap()
++			t := mg.Text(c, text).FontSize(fs).FontWeight(fwMedium)
++			if o.multiline {
++				t.MaxLines(2).LineHeight(1.05)
++			} else {
++				t.NoWrap()
++			}
+ 		}
+ 	})
+ 	return b

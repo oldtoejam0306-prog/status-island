@@ -1,0 +1,13 @@
+using System;using System.Threading;using System.Threading.Tasks;using IslandIntegrated;using IslandMedia;
+class NeteaseIdLyricsTests{
+ static void Check(bool b,string m){if(!b)throw new Exception(m);Console.WriteLine("PASS "+m);}
+ static Snapshot Song(string id){return new Snapshot{SourceId="cloudmusic.exe",Title="fixture",Artist="fixture",TrackId=id,DurationSeconds=120};}
+ static int Main(){int calls=0;string url="";var now=new DateTimeOffset(2026,1,1,0,0,0,TimeSpan.Zero);int status=200;string body="{\"code\":200,\"lrc\":{\"lyric\":\"[00:01.00]first\\n[00:05.00]second\"}}";
+ using(var src=new NeteaseIdLyricsSource(true,(u,t)=>{calls++;url=u.ToString();return Task.FromResult(new LyricHttpResult{Status=status,Body=body,RetryAfter="120"});},()=>now)){
+ var a=src.ReadAsync(Song("123"),CancellationToken.None,false).Result;Check(a.State=="ready"&&a.Document.Lines.Count==2,"exact id yields timed lyrics");Check(url.StartsWith("https://music.163.com/api/song/lyric/v1?")&&url.Contains("id=123")&&!url.Contains("fixture"),"only song id sent");
+ src.ReadAsync(Song("123"),CancellationToken.None,false).Wait();Check(calls==1,"per-song memory cache");now=now.AddSeconds(1);src.ReadAsync(Song("124"),CancellationToken.None,false).Wait();Check(calls==2&&url.Contains("id=124"),"song change fetches new id");
+ now=now.AddSeconds(1);status=403;src.ReadAsync(Song("125"),CancellationToken.None,true).Wait();now=now.AddSeconds(1);var x=src.ReadAsync(Song("125"),CancellationToken.None,true).Result;Check(x.State=="unavailable"&&calls==3,"access denial prevents retries");}
+ calls=0;status=200;body="{\"code\":403}";using(var src=new NeteaseIdLyricsSource(true,(u,t)=>{calls++;return Task.FromResult(new LyricHttpResult{Status=status,Body=body});},()=>now)){src.ReadAsync(Song("123"),CancellationToken.None,true).Wait();src.ReadAsync(Song("123"),CancellationToken.None,true).Wait();Check(calls==1,"service access denial prevents retries");}
+ calls=0;status=429;using(var src=new NeteaseIdLyricsSource(true,(u,t)=>{calls++;return Task.FromResult(new LyricHttpResult{Status=status,RetryAfter="120"});},()=>now)){var x=src.ReadAsync(Song("123"),CancellationToken.None,true).Result;src.ReadAsync(Song("123"),CancellationToken.None,true).Wait();Check(x.State=="rate-limited"&&calls==1&&src.RetryNotBefore.HasValue,"rate limit honored");}
+ Check(NeteaseIdLyricsSource.Parse("{\"code\":200,\"nolyric\":true}",120).State=="instrumental","instrumental preserved");Check(NeteaseIdLyricsSource.Parse("{\"code\":200,\"lrc\":{\"lyric\":\"[03:00.00]wrong\"}}",120).State=="not-found","out-of-duration lyric rejected");Check(LyricMatcher.Key(Song("123"))!=LyricMatcher.Key(Song("124")),"same metadata different id invalidates lyrics");return 0;}
+}

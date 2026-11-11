@@ -18,10 +18,10 @@ Write-Host "已安装到 $destDir" -ForegroundColor Green
 $cfgPath = Join-Path $destDir 'config.json'
 if (-not (Test-Path $cfgPath)) {
     $template = [ordered]@{
-        macHost           = '100.64.0.1'
+        macHost           = ''
         socksPort         = 1080
-        clashGroup        = '选择节点'
-        clashMacProxyName = 'SG-Mac-SOCKS5'
+        clashGroup        = ''
+        clashMacProxyName = ''
         tailscaleExe      = 'C:\Program Files\Tailscale\tailscale.exe'
         nvidiaSmi         = 'C:\Windows\System32\nvidia-smi.exe'
         dshPort           = 3081
@@ -32,7 +32,7 @@ if (-not (Test-Path $cfgPath)) {
         clashExe          = 'clash-verge.exe'
     }
     ($template | ConvertTo-Json -Depth 4) | Set-Content -LiteralPath $cfgPath -Encoding UTF8
-    Write-Host "已生成配置 $cfgPath —— 请按需修改（尤其是 macHost / clashGroup）" -ForegroundColor Yellow
+    Write-Host "已生成配置 $cfgPath —— 请按需修改（按需设置网络字段）" -ForegroundColor Yellow
 }
 
 $ws = New-Object -ComObject WScript.Shell

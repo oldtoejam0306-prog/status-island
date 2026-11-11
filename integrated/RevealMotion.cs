@@ -12,12 +12,13 @@ namespace IslandIntegrated {
    if(reduced){from=to=Amount=next;Moving=false;return;}
    if(next==to)return;
    from=Amount;to=next;started=now;
-   duration=Math.Max(1,(int)Math.Round((open?220:180)*Math.Abs(to-from)));Moving=true;
+   duration=Math.Max(1,(int)Math.Round((open?220:320)*Math.Abs(to-from)));Moving=true;
   }
   public void Advance(long now){
    if(!Moving)return;
    double t=Math.Max(0,Math.Min(1,(now-started)/(double)duration));
-   Amount=from+(to-from)*(1-Math.Pow(1-t,3));
+   double eased=to==0?t*t*(3-2*t):1-Math.Pow(1-t,3);
+   Amount=from+(to-from)*eased;
    if(t>=1){Amount=to;Moving=false;}
   }
   public int Offset(int dpi){return (int)Math.Round(36*Math.Max(.5,dpi/96.0)*(1-Amount));}

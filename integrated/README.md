@@ -1,19 +1,39 @@
-# 新版集成状态台源码（2026-11-06）
+# Integrated Status Island
 
-此目录导出自本机正式切换的 `sidebar-merged-ready-20261106`，并为公开发布替换了机器专属路径。旧版 PowerShell 状态台保留在仓库原有目录；根目录旧安装脚本不会安装本目录的新版。这里是源码和构建资料，并非现成的一键安装包。
+This is the current C# WinForms panel. Build and start it with `Launch.cmd` (visible diagnostics) or `Launch.vbs` (quiet start) on Windows 10 version 1809 or later with .NET Framework 4.8 and Windows PowerShell 5.1. The project uses the installed Framework compiler and Windows Runtime metadata.
 
-## 当前能力与限制
+The helper assemblies are built under ignored `state/build`. Runtime configuration, layout, position, integration state and logs use `STATUS_ISLAND_HOME`, defaulting to `%LOCALAPPDATA%\StatusIsland`. `Candidate.State.ps1` creates the directory and copies empty example configuration files only when no local file exists. Existing local files are preserved.
 
-- 天气使用 Open-Meteo；此前用户确认温度恢复显示，但运行交接记录中的完整桌面视觉和服务表现仍需验收。
-- 音乐使用 Windows SMTC 和 LRCLIB 同步歌词；歌词取决于歌曲匹配、服务可用性和播放进度。真实暂停、切歌与拉起尚无完整验收记录。
-- Codex 工作状态包含近期 WAL 文件修改时间的估计，可能误判，并非真实任务事件订阅；没有可用信号时应视为未知。
-- 网站耗时通过 Google、Microsoft、Apple 的 HEAD 请求计算成功样本均值，可手动触发并在窗口可见时约每五分钟刷新。它是网站访问耗时，不是 Clash 指定代理线路延迟。
-- Autoloop 卡片是未连接的占位，真实任务读取、提交和 Mac 桥接未集成到此运行版本。
+## Local configuration
 
-## 构建和公开导出的差异
+Configure the following files in the local data directory before enabling integrations.
 
-Windows 10 1809 或更新版本、.NET Framework 4.8 和系统 WinRT 元数据下运行 `Build.cmd`。构建输出位于被忽略的 `state/build`。构建成功不等同于安装、启动或真实服务验收。
+- `config.example.json` → `config.json`
+- `pinky-host-connection.example.json` → `pinky-host-connection.json`
+- `pinky-start.example.json` → `pinky-start.json`
 
-公开导出将生命周期数据默认目录改为 `%LOCALAPPDATA%\StatusIsland\status-sources\agents`，Codex 数据目录使用 `CODEX_HOME`（未设置时使用用户目录下的 `.codex`）；交接脚本要求通过 `SIDEBAR_WORKSPACE` 显式指定本机工作区。这些更改仅存在于公开源码副本，未修改用户的运行版。生命周期源并未因此自动接通，也不应绕过权限拒绝。配置、用户布局、状态、凭据、日志与编译产物均未上传；余额模块包含读取用户配置中凭据的代码，但不包含实际凭据。
+The examples contain empty values. Do not commit local copies. `config.json` supports optional `ccSwitchLaunch` and Autoloop fields. Autoloop defaults disabled. To enable it, supply an explicit host, account, key-file path, remote node executable and remote script path. Only restricted host/account/path characters are accepted. Windows OpenSSH is invoked with batch mode and strict host key checking. If configuration is invalid, Autoloop reports unavailable; if disabled or absent, it stays offline.
 
-交接记录显示版本切换的首帧及 Shown 校验通过，旧版和备份保留。该导出经本机构建和布局测试，公开导出后的完整桌面使用、网络、音乐和 Autoloop 尚未重新验收。
+Pinky startup is also disabled by default. The optional `Start-PinkyFusion.ps1` entry requires explicit candidate/official executable paths and SHA256 values, a profile directory and a host directory beneath `%LOCALAPPDATA%\StatusIsland\PinkyHost`. The host trust root stays fixed there even when `STATUS_ISLAND_HOME` changes the panel's configuration and layout directory. With an enabled local config, it checks the host configuration and executable hashes, defers while there is a pending request, and uses Pinky's normal control flow without sending phone actions.
+
+The following environment settings configure local integrations.
+
+| Setting | Purpose |
+|---|---|
+| `STATUS_ISLAND_HOME` | Local app data root. |
+| `CODEX_HOME` | Directory whose selected Codex activity WAL timestamps are used for the activity estimate. Defaults to the current user's `.codex`. |
+| `SIDEBAR_AGENT_LIFECYCLE_HOME` | Optional agent lifecycle receipt directory. Defaults under the app data root. |
+| `SIDEBAR_VOICE_HOME` | Optional voice-pack directory. |
+| `AIHOT_ACTOR_ID` | Optional AIHOT request identifier; if absent, the optional identity header is omitted. |
+
+The activity estimate reads only recent modification times. The estimate can return unknown. Balance credential lookup uses an explicit local connection manifest. Weather and lyrics use public service endpoints; AIHOT polling is tied to its local card state. See source adapters for exact request behavior.
+
+## Evidence and limits
+
+- Candidate build, `ValidationRunner.exe` and `LayoutTests.exe` passed on the development machine.
+- The user confirmed music playback, track changes, lyric refresh, the activity estimate, breathing indicator, website timing feedback and the next right-edge expansion theme behavior.
+- Pinky 19 build and targeted UI/locales tests passed. The integrated client is switched to 19; the live panel lease identity matched in the hidden idle state at 360×80, with zero phone actions. The real handoff button callback and detail presentation remain pending after phone testing paused on 2026-11-12.
+- The user confirmed Autoloop details and submission; the backend state/choice reconciled with a resumed fixed confirmation and the snapshot showed zero pending items. The acceptance rule returned a fixed confirmation. Public configuration keeps the remote bridge disabled by default.
+- Normal update handoff evidence covers a limited two-version process-birth/receipt loop. Other upgrade and rollback cases remain pending.
+
+Final stable-release registration awaits the final desktop exit/restart and visual acceptance record.

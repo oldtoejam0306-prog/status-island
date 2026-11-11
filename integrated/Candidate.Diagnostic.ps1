@@ -1,6 +1,8 @@
 ﻿param([switch]$AlreadyBuilt)
 $ErrorActionPreference = 'Stop'
-$logs = Join-Path $PSScriptRoot 'state\logs'
+$appHome=$env:STATUS_ISLAND_HOME
+if([string]::IsNullOrWhiteSpace($appHome)){$appHome=Join-Path $env:LOCALAPPDATA 'StatusIsland'}
+$logs = Join-Path $appHome 'logs'
 New-Item -ItemType Directory -Force -Path $logs | Out-Null
 $exe = Join-Path $PSScriptRoot 'state\build\MediaContextDiagnostic.exe'
 if (-not $AlreadyBuilt -and -not (Test-Path -LiteralPath $exe -PathType Leaf)) {
