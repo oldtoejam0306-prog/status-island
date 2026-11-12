@@ -12,15 +12,15 @@ if(-not $cfg.enabled){[pscustomobject]@{state='disabled';enabled=$false;realStar
 $probePath=Join-Path $PSScriptRoot 'PinkyRuntimeProbe.ps1'
 if(-not [IO.File]::Exists($probePath)){throw 'Pinky runtime probe helper is missing.'}
 . $probePath
-foreach($field in @('candidateExecutable','candidateSha256','officialExecutable','officialSha256','profileDirectory','hostDirectory')){if($cfg.$field -isnot [string] -or [string]::IsNullOrWhiteSpace($cfg.$field)){throw 'Pinky integration configuration is incomplete.'}}
-foreach($field in @('candidateSha256','officialSha256')){if($cfg.$field -notmatch '^[0-9a-fA-F]{64}$'){throw 'Pinky integration configuration is invalid.'}}
-foreach($field in @('candidateExecutable','officialExecutable','profileDirectory','hostDirectory')){if(-not [IO.Path]::IsPathRooted($cfg.$field)){throw 'Pinky integration paths must be absolute.'}}
-$candidate=[IO.Path]::GetFullPath($cfg.candidateExecutable);$official=[IO.Path]::GetFullPath($cfg.officialExecutable);$profileDir=[IO.Path]::GetFullPath($cfg.profileDirectory);$hostDir=[IO.Path]::GetFullPath($cfg.hostDirectory)
+foreach($field in @('candidateExecutable','candidateSha256','profileDirectory','hostDirectory')){if($cfg.$field -isnot [string] -or [string]::IsNullOrWhiteSpace($cfg.$field)){throw 'Pinky integration configuration is incomplete.'}}
+if($cfg.candidateSha256 -notmatch '^[0-9a-fA-F]{64}$'){throw 'Pinky integration configuration is invalid.'}
+foreach($field in @('candidateExecutable','profileDirectory','hostDirectory')){if(-not [IO.Path]::IsPathRooted($cfg.$field)){throw 'Pinky integration paths must be absolute.'}}
+$candidate=[IO.Path]::GetFullPath($cfg.candidateExecutable);$profileDir=[IO.Path]::GetFullPath($cfg.profileDirectory);$hostDir=[IO.Path]::GetFullPath($cfg.hostDirectory)
 $hostRoot=[IO.Path]::GetFullPath((Join-Path (Join-Path $env:LOCALAPPDATA 'StatusIsland') 'PinkyHost'))
 if(-not [string]::Equals($hostDir,$hostRoot,[StringComparison]::OrdinalIgnoreCase) -and -not $hostDir.StartsWith(($hostRoot.TrimEnd('\')+'\'),[StringComparison]::OrdinalIgnoreCase)){throw 'Pinky host directory must be under the local Status Island data directory.'}
-if($candidate -ieq $official -or -not [IO.File]::Exists($candidate) -or -not [IO.File]::Exists($official) -or -not [IO.Directory]::Exists($profileDir)){throw 'Configured Pinky files or profile are unavailable.'}
+if(-not [IO.File]::Exists($candidate) -or -not [IO.Directory]::Exists($profileDir)){throw 'Configured Pinky files or profile are unavailable.'}
 function Get-PinkySHA256([string]$path){(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()}
-if((Get-PinkySHA256 $candidate) -ine $cfg.candidateSha256 -or (Get-PinkySHA256 $official) -ine $cfg.officialSha256){throw 'Configured Pinky executable hash does not match.'}
+if((Get-PinkySHA256 $candidate) -ine $cfg.candidateSha256){throw 'Configured Pinky executable hash does not match.'}
 $hostConfig=Join-Path $appHome 'pinky-host-connection.json'
 if(-not [IO.File]::Exists($hostConfig)){throw 'Pinky host connection is not configured.'}
 $hostCfg=Get-Content -LiteralPath $hostConfig -Raw -Encoding UTF8|ConvertFrom-Json
@@ -29,7 +29,7 @@ $hold=Join-Path $appHome 'pinky-switch-hold.json'
 if([IO.File]::Exists($hold)){[pscustomobject]@{state='unavailable';reason='handoff-window-held';realStartAttempted=$false}|ConvertTo-Json;return}
 if($PlanOnly){[pscustomobject]@{state='ready';version=(Get-Item $candidate).VersionInfo.FileVersion;realStartAttempted=$false}|ConvertTo-Json;return}
 function New-PinkyStart([string]$Executable,[string]$Arguments){$start=[Diagnostics.ProcessStartInfo]::new($Executable,$Arguments);$start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.WindowStyle=[Diagnostics.ProcessWindowStyle]::Hidden;$start.WorkingDirectory=Split-Path -Parent $Executable;$start.EnvironmentVariables['PINKY_HOME']=$profileDir;return $start}
-function Invoke-PinkyControl([string]$Command){$start=New-PinkyStart $official $Command;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true;$process=[Diagnostics.Process]::Start($start);try{$output=$process.StandardOutput.ReadToEndAsync();$errorOutput=$process.StandardError.ReadToEndAsync();if(-not $process.WaitForExit(18000)){throw 'Pinky control timed out.'};return @{exitCode=$process.ExitCode;output=$output.GetAwaiter().GetResult();errorOutput=$errorOutput.GetAwaiter().GetResult()}}finally{$process.Dispose()}}
+function Invoke-PinkyControl([string]$Command){$start=New-PinkyStart $candidate $Command;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true;$process=[Diagnostics.Process]::Start($start);try{$output=$process.StandardOutput.ReadToEndAsync();$errorOutput=$process.StandardError.ReadToEndAsync();if(-not $process.WaitForExit(18000)){throw 'Pinky control timed out.'};return @{exitCode=$process.ExitCode;output=$output.GetAwaiter().GetResult();errorOutput=$errorOutput.GetAwaiter().GetResult()}}finally{$process.Dispose()}}
 function Write-PinkyRuntime([string]$path,[hashtable]$record){$temporary=$path+'.'+[guid]::NewGuid().ToString('N')+'.tmp';[IO.File]::WriteAllText($temporary,($record|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false));if([IO.File]::Exists($path)){[IO.File]::Replace($temporary,$path,$null)}else{[IO.File]::Move($temporary,$path)}}
 $runtimePath=Join-Path $appHome 'pinky-runtime.json'
 $gate=[Threading.Mutex]::new($false,'Local\StatusIslandPinkyFusionStart');$owned=$false

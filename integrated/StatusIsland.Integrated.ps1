@@ -1,10 +1,6 @@
 ﻿# Non-sensitive in-process local metrics. No legacy worker, account access or network controls.
 $ErrorActionPreference = 'Stop'
-$Root = $env:STATUS_ISLAND_HOME
-if ([string]::IsNullOrWhiteSpace($Root)) { $Root = Join-Path $env:LOCALAPPDATA 'StatusIsland' }
-$Root = [IO.Path]::GetFullPath($Root)
-$env:STATUS_ISLAND_HOME = $Root
-$BuildRoot = Join-Path $PSScriptRoot 'state\build'
+$Root = Join-Path $PSScriptRoot 'state'
 $script:releaseCandidate = Split-Path -Leaf $PSScriptRoot
 New-Item -ItemType Directory -Force -Path $Root | Out-Null
 $Cfg = @{ codexProcess='ChatGPT'; claudeProcess='claude'; codexLaunch=''; claudeLaunch=''; routePrimary=''; routeBackup1=''; routeBackup2='' }
@@ -27,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
 
 # 分层窗口：逐像素透明，玻璃半透明和柔和外阴影都靠它
-Add-Type -Path (Join-Path $BuildRoot 'StatusNative.dll') -ReferencedAssemblies System.Drawing
+Add-Type -Path (Join-Path $PSScriptRoot 'state\build\StatusNative.dll') -ReferencedAssemblies System.Drawing
 
 # 激活/前置其他应用窗口（后台进程直接 SetForegroundWindow 会被系统限制，用 AttachThreadInput 绕过）
 # Native helper types loaded from the fingerprint-checked build.
@@ -99,8 +95,8 @@ $F_Pill  = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]12, [Sys
 $F_Page  = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]14, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
 $F_Tiny  = New-Object System.Drawing.Font('Microsoft YaHei UI', [single]12, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
 
-Add-Type -Path (Join-Path $BuildRoot 'NeteaseMedia.dll')
-Add-Type -Path (Join-Path $BuildRoot 'Controller.Check.dll')
+Add-Type -Path (Join-Path $PSScriptRoot 'state\build\NeteaseMedia.dll')
+Add-Type -Path (Join-Path $PSScriptRoot 'state\build\Controller.Check.dll')
 [void][GlassWin]::SetProcessDPIAware()
 $script:ccLauncher=[IslandIntegrated.CcSwitchLauncher]::CreateDefault('')
 $script:ccConfigured=''
@@ -409,7 +405,7 @@ function New-StatusRaster([int]$pw,[int]$ph){
   [IslandIntegrated.StatusSignal]::ReduceMotion=$controller.ReducedMotion
   $phase=if($script:ticker.flipping){[double]$script:ticker.progress}else{0.0}
   $iconMeasure=[Diagnostics.Stopwatch]::StartNew()
-  $bmp=[IslandIntegrated.StatusUiRenderer]::RenderLive($pw,$ph,$M,$data,[int]$script:ticker.sysIdx,$phase)
+  $bmp=[IslandIntegrated.StatusUiRenderer]::RenderLiveWithBattery($pw,$ph,$M,$data,[int]$script:ticker.sysIdx,$phase,$controller.DeviceBatteryView)
   [IslandIntegrated.TransitionMetrics]::Record('raster-base',$iconMeasure.Elapsed.TotalMilliseconds);$iconMeasure.Restart()
   $g=[Drawing.Graphics]::FromImage($bmp)
   try{$g.TranslateTransform($M,$M);$fresh=$data.IsFresh([DateTimeOffset]::UtcNow);for($i=0;$i-lt 2;$i++){$icon=[IslandIntegrated.StatusUiLayout]::ServiceIcon($i,$pw,$ph);$known=if($i-eq 0){$data.CodexKnown}else{$data.ClaudeKnown};$present=if($i-eq 0){$data.CodexRun}else{$data.ClaudeUp};$color=if($fresh-and $known-and $present){if($i-eq 0){$C_Codex}else{$C_Claude}}else{[IslandIntegrated.Palette]::Secondary};$scale=if($fresh-and $known-and $present){1.0}else{0.45};if([IslandIntegrated.StatusUiRenderer]::DesktopAgentWorking($data,$i,[DateTimeOffset]::UtcNow)){$wave=if($controller.ReducedMotion){0.0}else{[math]::Sin($script:pulse)};$halo=$icon.Width*(2.0+0.35*$wave);Draw-Glow $g ($icon.X+($icon.Width-$halo)/2) ($icon.Y+($icon.Height-$halo)/2) $halo $halo ([Drawing.Color]::FromArgb(135,$color.R,$color.G,$color.B))};$iconRaster=Get-AgentIconRaster $i $icon.Width $color $scale;$g.DrawImageUnscaled($iconRaster,$icon.X-1,$icon.Y-1)}}catch{$bmp.Dispose();throw}finally{$g.Dispose()}
@@ -484,6 +480,7 @@ $onMove = {
   param($sender, $e)
   $hint=if($script:dock.HandleMode([int]$script:size.h)){[string][char]0x5c55+[char]0x5f00+[char]0x72b6+[char]0x6001+[char]0x53f0}else{[IslandIntegrated.StatusHints]::At([Drawing.Point]::new($e.X-$M,$e.Y-$M),[int]$script:size.w,([int]$script:size.h-lt 232),$controller.Legacy)}
   if([IslandIntegrated.StatusUiLayout]::CcSwitchButton([int]$script:size.w,([int]$script:size.h -lt 232)).Contains([Drawing.Point]::new($e.X-$M,$e.Y-$M))){$hint=$script:ccStatusText}
+  $batteryPoint=[Drawing.Point]::new($e.X-$M,$e.Y-$M);$batteryCompact=([int]$script:size.h-lt232);for($batteryIndex=0;$batteryIndex-lt3;$batteryIndex++){if([IslandIntegrated.StatusUiLayout]::BatterySlot($batteryIndex,[int]$script:size.w,$batteryCompact).Contains($batteryPoint)){$hint=$controller.DeviceBatteryView.Tooltip($batteryIndex,[DateTimeOffset]::UtcNow);break}}
   if($hint-ne $script:lastHint){$script:lastHint=$hint;$script:statusToolTip.SetToolTip($form,$hint);$form.AccessibleDescription=$hint}
   if($script:dock.HandleMode([int]$script:size.h)){$form.Cursor=[Windows.Forms.Cursors]::Hand;return}
   if (-not $script:dragging) {
@@ -595,6 +592,7 @@ $controller.StatusShadowMargin=$M
 $script:lastLegacyStamp=''
 $script:ccChecked=[DateTime]::MinValue; $script:ccStatusText='正在检查 CC Switch'; $script:ccTask=$null
 $script:lastWebsiteLabel=''
+$script:lastBatterySignature=''
 $timer.Add_Tick({
   if($script:ccTask -and $script:ccTask.IsCompleted){try{$ccStatus=$script:ccTask.GetAwaiter().GetResult();$available=$ccStatus.State -eq [IslandIntegrated.CcSwitchState]::Running -or $ccStatus.State -eq [IslandIntegrated.CcSwitchState]::Available;if([IslandIntegrated.StatusUiRenderer]::CcSwitchAvailable -ne $available){[IslandIntegrated.StatusUiRenderer]::CcSwitchAvailable=$available;$script:statusDirty=$true};$script:ccStatusText=if($available){'启动或切换到 CC Switch'}else{'未检测到 CC Switch'}}catch{[IslandIntegrated.StatusUiRenderer]::CcSwitchAvailable=$false;$script:ccStatusText='CC Switch 状态不可用'}finally{$script:ccTask=$null}}
   if($form.Visible -and -not $script:ccTask -and (([DateTime]::UtcNow-$script:ccChecked).TotalSeconds -ge 30)){$script:ccChecked=[DateTime]::UtcNow;$script:ccTask=$script:ccLauncher.GetStatusAsync($script:ccConfigured)}
@@ -626,6 +624,9 @@ $anim = New-Object System.Windows.Forms.Timer
 $anim.Interval = 30
 $anim.Add_Tick({
     if($script:renderGate.Closed){return}
+    $batterySignature=$controller.DeviceBatterySignature
+    if($batterySignature-ne$script:lastBatterySignature){$script:lastBatterySignature=$batterySignature;$script:statusDirty=$true}
+    if($controller.ConsumeDeviceBatteryDirty()){$script:statusDirty=$true}
     [IslandIntegrated.TransitionMetrics]::MarkTick("status",[IslandIntegrated.PreviewClock]::NowMs)
     $submittedThisTick=$false
     $animationNow=[IslandIntegrated.PreviewClock]::NowMs
@@ -757,7 +758,7 @@ $form.Add_Shown({
       $elapsed=if($global:SidebarStartupWatch){$global:SidebarStartupWatch.ElapsedMilliseconds}else{$null}
       $first=@{schema=1;phase='shown';firstPixelsCommitted=$script:firstFrameGate.CanShow;candidate=$script:releaseCandidate;elapsedFromEntryMs=$elapsed;bounds=@{left=$form.Left;top=$form.Top;width=$form.Width;height=$form.Height};startPosition=[string]$form.StartPosition;utc=[DateTime]::UtcNow.ToString('o')}
       [IO.File]::WriteAllText((Join-Path $Root 'logs\startup-first-shown.json'),($first|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))
-    } catch {}
+    } catch {} 
     $script:statusDirty=$true
     # Collector disabled in isolated preview
     $timer.Start()

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Xml.Serialization;
 using System.Threading.Tasks;
+using System.Threading;
 using IslandMedia;
 using SidebarClockCalendar;
 
@@ -130,6 +131,8 @@ namespace IslandIntegrated {
     readonly AihotMonitor aihot;
     bool aihotInboxExpanded;
     readonly PinkySidebarSession pinkySession;
+    readonly DeviceBatterySource deviceBatteries;
+    int deviceBatteryDirty=1;
     PinkyPanelLease pinkyPanel = new PinkyPanelLease();
     bool pinkyReading, pinkyDismissed;
     long pinkyNextPoll;
@@ -138,6 +141,10 @@ namespace IslandIntegrated {
       get { return !pinkyDismissed && pinkyPanel.Verified &&
         (pinkyPanel.Phase == "requested" || pinkyPanel.Phase == "attached"); }
     }
+    public DeviceBatterySnapshot DeviceBatteryView { get { return deviceBatteries.Snapshot(DateTimeOffset.UtcNow); } }
+    public string DeviceBatterySignature { get { return deviceBatteries.Signature(DateTimeOffset.UtcNow); } }
+    public bool ConsumeDeviceBatteryDirty(){return Interlocked.Exchange(ref deviceBatteryDirty,0)!=0;}
+    void OnDeviceBatteryChanged(object sender,EventArgs e){Interlocked.Exchange(ref deviceBatteryDirty,1);}
     Size PinkyPanelSize
     {
       get
@@ -462,7 +469,7 @@ namespace IslandIntegrated {
     public int CleanupErrors {get;private set;}
     public void Shutdown() {
       if(shuttingDown)return;shuttingDown=true;revealPrecision.Dispose();statusPrecision.Dispose();if(dragInput!=null)dragInput.Cancel();EndDragPreview();
-      CleanupErrors=cleanup.Run(()=>pinkySession.Dispose(),()=>{if(routeDropdown!=null){routeDropdown.Dispose();routeDropdown=null;}},()=>timer.Stop(),()=>timer.Dispose(),CloseAutoloopNotification,()=>{autoloopCancellation.Cancel();autoloopBridge.Dispose();autoloopCancellation.Dispose();},()=>aihot.Dispose(),()=>localSource.Dispose(),()=>{mediaSource.StateChanged-=OnMediaChanged;mediaSource.Dispose();VoicePreview.Close();},()=>{lyricsSequence++;if(lyricsCancellation!=null){lyricsCancellation.Cancel();lyricsCancellation.Dispose();lyricsCancellation=null;}lyricsSource.Dispose();},()=>{var linked=status as NoActivateForm;if(linked!=null)linked.GeometryContextChanged-=OnGeometryContextChanged;},()=>themePicker.Dispose(),()=>{if(addMenu!=null)addMenu.Dispose();},()=>{if(form.ContextMenuStrip!=null)form.ContextMenuStrip.Dispose();},()=>form.Dispose(),()=>{if(artwork!=null){artwork.Dispose();artwork=null;}});
+      CleanupErrors=cleanup.Run(()=>{deviceBatteries.Changed-=OnDeviceBatteryChanged;deviceBatteries.Stop();},()=>pinkySession.Dispose(),()=>{if(routeDropdown!=null){routeDropdown.Dispose();routeDropdown=null;}},()=>timer.Stop(),()=>timer.Dispose(),CloseAutoloopNotification,()=>{autoloopCancellation.Cancel();autoloopBridge.Dispose();autoloopCancellation.Dispose();},()=>aihot.Dispose(),()=>localSource.Dispose(),()=>{mediaSource.StateChanged-=OnMediaChanged;mediaSource.Dispose();VoicePreview.Close();},()=>{lyricsSequence++;if(lyricsCancellation!=null){lyricsCancellation.Cancel();lyricsCancellation.Dispose();lyricsCancellation=null;}lyricsSource.Dispose();},()=>{var linked=status as NoActivateForm;if(linked!=null)linked.GeometryContextChanged-=OnGeometryContextChanged;},()=>themePicker.Dispose(),()=>{if(addMenu!=null)addMenu.Dispose();},()=>{if(form.ContextMenuStrip!=null)form.ContextMenuStrip.Dispose();},()=>form.Dispose(),()=>{if(artwork!=null){artwork.Dispose();artwork=null;}});
     }
     public static bool TestShutdown(NeteaseSource source) {
       var app=new App(Path.Combine(Path.GetTempPath(),"column-test-no-layout.xml"),null,source);
@@ -503,6 +510,8 @@ namespace IslandIntegrated {
       aihot.NotificationChanged+=OnAihotNotificationChanged;
       aihot.InboxRequested+=(sender,e)=>OpenAihotInbox();
       pinkySession = new PinkySidebarSession(Path.Combine(Path.GetDirectoryName(file), "pinky-host-connection.json"));
+      deviceBatteries = new DeviceBatterySource(Path.Combine(Path.GetDirectoryName(file), "device-battery-connection.json"));
+      deviceBatteries.Changed+=OnDeviceBatteryChanged;
       status=linkedStatus;lyricsSource=LyricsCombinedSource.FromApprovedConfiguration(Path.Combine(Path.GetDirectoryName(file),"lyrics-connection.json"));
       weatherProvider=OpenMeteoWeatherProvider.FromApprovedConfiguration(Path.Combine(Path.GetDirectoryName(file),"weather-connection.json"));path=file; layout=Load(file);localSource.NetworkSnapshotPath=Path.Combine(Path.GetDirectoryName(file),"network-readonly.json");localSource.BalanceSnapshotPath=Path.Combine(Path.GetDirectoryName(file),"balance-readonly.json");localSource.ActivitySnapshotPath=Path.Combine(Path.GetDirectoryName(file),"agent-activity.json");localSource.BalanceConnectionPath=Path.Combine(Path.GetDirectoryName(file),"balance-connection.json");
       try{var releaseRoot=Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(file)));if(File.Exists(Path.Combine(releaseRoot,"FILE-MANIFEST.json"))){normalUpdate=new NormalUpdateHandoff(releaseRoot);normalUpdate.PublishOwner();}}catch{normalUpdate=null;}
@@ -646,6 +655,8 @@ namespace IslandIntegrated {
     void ObserveSettledPlacement(long now){if(!form.Visible)return;var surface=StatusSurface();if(surface!=evidenceStatus||form.Bounds!=evidenceColumn){evidenceStatus=surface;evidenceColumn=form.Bounds;evidencePending=true;evidenceDue=now+250;}if(evidencePending&&now>=evidenceDue){evidencePending=false;RecordPlacement("settled");}}
     void Tick(bool menuOpen) {
       if(shuttingDown)return;
+      // Poll scheduling is independent of the column's open/visible state. Work runs asynchronously.
+      deviceBatteries.StartIfDue(DateTimeOffset.UtcNow);
       if(normalUpdate!=null){normalUpdate.Tick(PinkyPanelRequested||editing||modal||NetworkDropdownVisible||ThemePickerVisible||dragging!=null||dragPreview!=null||menuOpen||(form.ContextMenuStrip!=null&&form.ContextMenuStrip.Visible)||(status!=null&&status.ContextMenuStrip!=null&&status.ContextMenuStrip.Visible),()=>LayoutStore.Save(path,layout),CloseForUpdate);if(normalUpdate.Closing)return;}
 
       Point p=Cursor.Position; Screen s=Screen.FromPoint(p); long now=PreviewClock.NowMs; bool down=Native.ButtonsDown();
@@ -721,6 +732,7 @@ namespace IslandIntegrated {
       double width = pinkyPanel.DesiredWidthDip;
       double height = pinkyPanel.DesiredHeightDip;
       pinkyPanel = next ?? new PinkyPanelLease();
+      deviceBatteries.ObservePinky(pinkyPanel.Batteries,DateTimeOffset.UtcNow);
       if (pinkyPanel.Verified && pinkyPanel.Phase == "hidden") pinkyDismissed = false;
       if (wasRequested != PinkyPanelRequested || width != pinkyPanel.DesiredWidthDip || height != pinkyPanel.DesiredHeightDip)
       {
@@ -855,12 +867,26 @@ namespace IslandIntegrated {
     void FinishCardDrag(bool commit){if(dragging==null)return;bool accepted=commit&&cards.ClientRectangle.Contains(dragPointer);string id=dragging;if(!accepted&&dragOriginal!=null)CurrentLayout.Cards=dragOriginal;else dragDrops++;dragOriginal=null;dragging=null;dragPlan=null;var finishing=dragPreview;if(accepted&&finishing!=null&&!ReducedMotion&&!shuttingDown&&!form.IsDisposed){finishing.Settled+=(sender,e)=>{if(ReferenceEquals(dragPreview,finishing)){EndDragPreview();if(!shuttingDown&&!form.IsDisposed)ReflowCards();}};finishing.Release(VisualDragPlan());}else{EndDragPreview();if(!shuttingDown&&!form.IsDisposed)ReflowCards();}string result=new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new{source=id,committedToDraft=accepted,overEvents=dragOvers,reorderChanges=dragReorders,dropEvents=dragDrops,scope="stable insertion geometry and hysteresis; layout persists only on Save"});Task.Run(()=>{try{var folder=Path.Combine(Path.GetDirectoryName(path),"logs");Directory.CreateDirectory(folder);File.WriteAllText(Path.Combine(folder,"drag-gesture-latest.json"),result);}catch{}});}
 
     void StartDragPreview(string id){EndDragPreview();dragPreview=new DragPreview(cards.Controls.Cast<Control>().ToArray(),id){Bounds=cards.ClientRectangle,BackColor=cards.BackColor,ReducedMotion=ReducedMotion};dragPreview.SetGrab(dragging=="fixture"?new Point(60,18):dragGrab);cards.Controls.Add(dragPreview);dragPreview.BringToFront();dragPreview.Present(VisualDragPlan(),dragging=="fixture"?new Point(80,100):dragPointer);}
-    int AihotCardHeight {get{return editing?AihotLayout.CardHeight:AihotLayout.InboxHeight(aihot.UnreadCount,aihotInboxExpanded);}}
-    void OpenAihotInbox(){
+    int AihotCardHeight {
+      get { return editing?AihotLayout.CardHeight:AihotLayout.InboxHeight(aihot.UnreadCount,aihotInboxExpanded); }
+    }
+    void OpenAihotInbox() {
       if(shuttingDown||editing||modal)return;
-      aihotInboxExpanded=true;active=AihotTargetScreen;state.Open=true;suppressedUntil=0;Control target=null;
-      foreach(Control panel in cards.Controls)foreach(Control child in panel.Controls){var inbox=child as AihotSidebarControl;if(inbox==null)continue;inbox.ExpandUnread();target=panel;}
-      ReflowCards();PresentReveal(true,active,PreviewClock.NowMs);if(target!=null)cards.ScrollControlIntoView(target);form.CommitLayoutFrame();
+      aihotInboxExpanded=true;
+      active=AihotTargetScreen;
+      state.Open=true;
+      suppressedUntil=0;
+      Control target=null;
+      foreach(Control panel in cards.Controls)foreach(Control child in panel.Controls){
+        var inbox=child as AihotSidebarControl;
+        if(inbox==null)continue;
+        inbox.ExpandUnread();
+        target=panel;
+      }
+      ReflowCards();
+      PresentReveal(true,active,PreviewClock.NowMs);
+      if(target!=null)cards.ScrollControlIntoView(target);
+      form.CommitLayoutFrame();
     }
     void ReflowCards(){if(dragPreview!=null){dragPreview.Present(VisualDragPlan(),dragging=="fixture"?new Point(80,100):dragPointer);return;}var watch=System.Diagnostics.Stopwatch.StartNew();var plan=WidgetGrid.Arrange(CurrentLayout.Cards,baseColumnWidth,AihotCardHeight);var scroll=cards.AutoScrollPosition;cards.SuspendLayout();foreach(Control item in cards.Controls){Rectangle bounds;if(plan.TryGetValue(item.Tag as string,out bounds)){bounds.Offset(scroll);if(item.Bounds!=bounds)item.Bounds=bounds;}}var extent=new Size(baseColumnWidth,WidgetGrid.Height(CurrentLayout.Cards,baseColumnWidth,AihotCardHeight));if(cards.AutoScrollMinSize!=extent)cards.AutoScrollMinSize=extent;cards.ResumeLayout();if(dragging==null)UpdateColumnExtent();TransitionMetrics.Record("grid-layout",watch.Elapsed.TotalMilliseconds);}
     void Rebuild() {
@@ -897,8 +923,14 @@ namespace IslandIntegrated {
         if(c.Id=="aihot"){
           body.Visible=false;head.Visible=false;
           var hotCard=new AihotSidebarControl(aihot){Dock=DockStyle.Fill,Enabled=!editing,Expanded=aihotInboxExpanded};
-          hotCard.ViewChanged+=(sender,e)=>{if(shuttingDown||editing)return;aihotInboxExpanded=hotCard.Expanded;ReflowCards();form.CommitLayoutFrame();};
-          panel.Controls.Add(hotCard);if(editing)head.BringToFront();
+          hotCard.ViewChanged+=(sender,e)=>{
+            if(shuttingDown||editing)return;
+            aihotInboxExpanded=hotCard.Expanded;
+            ReflowCards();
+            form.CommitLayoutFrame();
+          };
+          panel.Controls.Add(hotCard);
+          if(editing)head.BringToFront();
         }
         if(c.Id=="shortcuts") {
           var action=new GlassActionButton { Text=editing?"选择应用":"打开应用", Location=new Point(14,panel.Height-37), Size=new Size(100,27), FlatStyle=FlatStyle.Flat, ForeColor=Text, BackColor=Color.Transparent };

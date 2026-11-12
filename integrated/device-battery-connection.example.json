@@ -1,0 +1,11 @@
+{
+  "schema": "pinky.device-battery-connection.v1",
+  "enabled": false,
+  "host": "",
+  "account": "",
+  "keyFile": "",
+  "knownHostsFile": "",
+  "macStableId": "",
+  "ipadStableId": "",
+  "phoneStableId": ""
+}

@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Security;
+using System.Security.Cryptography;
 using System.Text;
 using System.Web.Script.Serialization;
 
@@ -20,6 +21,7 @@ namespace IslandIntegrated
         public IntPtr PanelHwnd;
         public string Reason;
         public long Sequence;
+        public PinkyBatterySnapshot Batteries;
     }
 
     public sealed class PinkyHostLease
@@ -41,6 +43,7 @@ namespace IslandIntegrated
         internal delegate long MonotonicClock();
 
         private const int MaxFileBytes = 16 * 1024;
+        private const int MaxBatteryFileBytes = PinkyBatteryDocumentParser.MaximumDocumentBytes;
         private readonly string directory;
         private readonly string executable;
         private readonly ProcessIdentityValidator validator;
@@ -53,6 +56,13 @@ namespace IslandIntegrated
         private long lastPanelHeartbeat;
         private bool hasPanelHeartbeat;
         private PinkyPanelLease lastVerifiedPanel;
+        private bool batteryAccessDenied;
+        private long lastBatterySequence = -1;
+        private string lastBatteryFingerprint;
+        private string lastBatteryNonce;
+        private int lastBatteryPid;
+        private long lastBatteryBirthFileTime;
+        private PinkyBatterySnapshot lastBattery;
         private bool accessDenied;
         private bool appearanceAccessDenied;
         private string lastAppearanceTheme;
@@ -72,6 +82,7 @@ namespace IslandIntegrated
 
         public bool Enabled { get; private set; }
         public bool AccessDenied { get { return accessDenied; } }
+        public bool BatteryAccessDenied { get { return batteryAccessDenied; } }
         public bool OwnedPopupPresentation { get; private set; }
 
         public static PinkyHostConnection FromConfiguration(string file)
@@ -183,6 +194,12 @@ namespace IslandIntegrated
                     lastPanelHeartbeat = 0;
                     hasPanelHeartbeat = false;
                     lastVerifiedPanel = null;
+                    lastBatterySequence = -1;
+                    lastBatteryFingerprint = null;
+                    lastBatteryNonce = hostNonce;
+                    lastBatteryPid = pid;
+                    lastBatteryBirthFileTime = birth;
+                    lastBattery = null;
                 }
 
                 string fingerprint = raw;
@@ -198,7 +215,10 @@ namespace IslandIntegrated
                     hasPanelHeartbeat = true;
                 }
                 else if (!hasPanelHeartbeat || (currentTick - lastPanelHeartbeat) / (double)Stopwatch.Frequency > 3) return failed;
-                var verified = new PinkyPanelLease { Verified = true, Phase = phase, DesiredWidthDip = width, DesiredHeightDip = height, PanelHwnd = hwnd, Reason = reason, Sequence = sequence };
+                // Battery data is a separate optional lane. A missing/stale/malformed
+                // batteries.json never invalidates the authenticated panel lease.
+                PinkyBatterySnapshot batteries = ReadBatteries(hostNonce, pid, birth, now);
+                var verified = new PinkyPanelLease { Verified = true, Phase = phase, DesiredWidthDip = width, DesiredHeightDip = height, PanelHwnd = hwnd, Reason = reason, Sequence = sequence, Batteries = batteries };
                 lastVerifiedPanel = CopyPanel(verified);
                 return verified;
             }
@@ -232,11 +252,89 @@ namespace IslandIntegrated
             return failed;
         }
 
+        private PinkyBatterySnapshot ReadBatteries(string hostNonce, int pid, long birth, DateTimeOffset now)
+        {
+            if (!Enabled || batteryAccessDenied || !ValidNonce(hostNonce))
+                return PinkyBatterySnapshot.Unavailable(batteryAccessDenied ? "access-denied" : "battery-disabled", batteryAccessDenied);
+            try
+            {
+                EnsurePlainAncestors(directory);
+                string file = Path.Combine(directory, "batteries.json");
+                EnsurePlainFile(file);
+                string raw = ReadBounded(file, MaxBatteryFileBytes);
+                if (raw == null) return PinkyBatterySnapshot.Unavailable("battery-missing-or-oversized", false);
+                var parsed = PinkyBatteryDocumentParser.Parse(raw, hostNonce, pid, birth, now,
+                    delegate(int checkedPid, long checkedBirth) { return validator(checkedPid, checkedBirth, executable); });
+                if (parsed.AccessDenied)
+                {
+                    batteryAccessDenied = true;
+                    return PinkyBatterySnapshot.Unavailable("access-denied", true);
+                }
+                if (!parsed.Verified) return parsed;
+
+                // Replay tracking is isolated from panel.json's sequence and access flags.
+                if (!String.Equals(lastBatteryNonce, hostNonce, StringComparison.Ordinal) ||
+                    lastBatteryPid != pid || lastBatteryBirthFileTime != birth)
+                {
+                    lastBatteryNonce = hostNonce;
+                    lastBatteryPid = pid;
+                    lastBatteryBirthFileTime = birth;
+                    lastBatterySequence = -1;
+                    lastBatteryFingerprint = null;
+                    lastBattery = null;
+                }
+                string fingerprint = HashText(raw);
+                if (parsed.Sequence < lastBatterySequence)
+                    return PinkyBatterySnapshot.Unavailable("battery-replay", false);
+                if (parsed.Sequence == lastBatterySequence)
+                {
+                    if (!String.Equals(fingerprint, lastBatteryFingerprint, StringComparison.Ordinal))
+                        return PinkyBatterySnapshot.Unavailable("battery-sequence-reused", false);
+                    return lastBattery ?? PinkyBatterySnapshot.Unavailable("battery-cache-empty", false);
+                }
+                lastBatterySequence = parsed.Sequence;
+                lastBatteryFingerprint = fingerprint;
+                lastBattery = parsed;
+                return parsed;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                batteryAccessDenied = true;
+                return PinkyBatterySnapshot.Unavailable("access-denied", true);
+            }
+            catch (SecurityException)
+            {
+                batteryAccessDenied = true;
+                return PinkyBatterySnapshot.Unavailable("access-denied", true);
+            }
+            catch (Win32Exception ex)
+            {
+                if (ex.NativeErrorCode == 5) batteryAccessDenied = true;
+                return PinkyBatterySnapshot.Unavailable(batteryAccessDenied ? "access-denied" : "battery-read", batteryAccessDenied);
+            }
+            catch (IOException ex)
+            {
+                int code = ex.HResult & 0xffff;
+                if (code == 5) batteryAccessDenied = true;
+                return PinkyBatterySnapshot.Unavailable(batteryAccessDenied ? "access-denied" : "battery-read", batteryAccessDenied);
+            }
+            catch { return PinkyBatterySnapshot.Unavailable("battery-invalid", false); }
+        }
+
+        private static string HashText(string text)
+        {
+            using (var sha = SHA256.Create())
+            {
+                byte[] bytes = new UTF8Encoding(false).GetBytes(text ?? String.Empty);
+                return Convert.ToBase64String(sha.ComputeHash(bytes));
+            }
+        }
+
         private static PinkyPanelLease CopyPanel(PinkyPanelLease panel)
         {
             return new PinkyPanelLease { Verified = panel.Verified, Phase = panel.Phase,
                 DesiredWidthDip = panel.DesiredWidthDip, DesiredHeightDip = panel.DesiredHeightDip,
-                PanelHwnd = panel.PanelHwnd, Reason = panel.Reason, Sequence = panel.Sequence };
+                PanelHwnd = panel.PanelHwnd, Reason = panel.Reason, Sequence = panel.Sequence, Batteries = panel.Batteries };
         }
 
         public void PublishHost(PinkyHostLease lease)
@@ -429,11 +527,15 @@ namespace IslandIntegrated
         }
         private static string ReadBounded(string file)
         {
+            return ReadBounded(file, MaxFileBytes);
+        }
+        private static string ReadBounded(string file, int maximumBytes)
+        {
             using (var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
             using (var memory = new MemoryStream())
             {
                 byte[] buffer = new byte[2048]; int read;
-                while ((read = stream.Read(buffer, 0, buffer.Length)) != 0) { if (memory.Length + read > MaxFileBytes) return null; memory.Write(buffer, 0, read); }
+                while ((read = stream.Read(buffer, 0, buffer.Length)) != 0) { if (memory.Length + read > maximumBytes) return null; memory.Write(buffer, 0, read); }
                 return new UTF8Encoding(false, true).GetString(memory.ToArray());
             }
         }

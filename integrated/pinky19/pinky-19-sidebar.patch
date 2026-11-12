@@ -1,5 +1,5 @@
 diff --git a/cmd/pinky-ui-demo/main.go b/cmd/pinky-ui-demo/main.go
-index 2625d90a61a2c9e0bfa64c2d0c0f939ee800ac1e..c952814fdf17efa55c7af026b9c9497f9b11bc8f 100644
+index 2625d90..c952814 100644
 --- a/cmd/pinky-ui-demo/main.go
 +++ b/cmd/pinky-ui-demo/main.go
 @@ -17,6 +17,7 @@ import (
@@ -29,7 +29,7 @@ index 2625d90a61a2c9e0bfa64c2d0c0f939ee800ac1e..c952814fdf17efa55c7af026b9c9497f
  		if err := runGateway(*theme, *page, *dev, *hidden, *withVideo, *timeout); err != nil {
  			fmt.Fprintln(os.Stderr, err)
 diff --git a/cmd/pinky/locales/en.json b/cmd/pinky/locales/en.json
-index 7f0d8a1a0b1ccf402dc6c60ff5969427e3237b36..cb9154fc1a14d91746e635b444f89065661d6d6a 100644
+index 7f0d8a1..cb9154f 100644
 --- a/cmd/pinky/locales/en.json
 +++ b/cmd/pinky/locales/en.json
 @@ -5838,6 +5838,18 @@
@@ -52,7 +52,7 @@ index 7f0d8a1a0b1ccf402dc6c60ff5969427e3237b36..cb9154fc1a14d91746e635b444f89065
    "@needsDone": {
      "description": "Button on a handoff card: the person did what the agent asked, and the phone goes back to the agent, with the note if there is one."
 diff --git a/cmd/pinky/locales/ja.json b/cmd/pinky/locales/ja.json
-index 0d8136ea6949a50d3285cd53ba27e86093274f94..8a34c7e69479ac451749d8ef0817f0a183cea851 100644
+index 0d8136e..8a34c7e 100644
 --- a/cmd/pinky/locales/ja.json
 +++ b/cmd/pinky/locales/ja.json
 @@ -901,6 +901,9 @@
@@ -66,7 +66,7 @@ index 0d8136ea6949a50d3285cd53ba27e86093274f94..8a34c7e69479ac451749d8ef0817f0a1
    "needsDoneTooltip": "スマホを {agent} に返す",
    "needsFirstConnection": "初回接続",
 diff --git a/cmd/pinky/locales/zh-Hans.json b/cmd/pinky/locales/zh-Hans.json
-index a645e24399c55b3396aa3318e6cd3094641b2458..aa6d007ada63c712eda18536eab5b47212199ce0 100644
+index a645e24..aa6d007 100644
 --- a/cmd/pinky/locales/zh-Hans.json
 +++ b/cmd/pinky/locales/zh-Hans.json
 @@ -901,6 +901,9 @@
@@ -80,7 +80,7 @@ index a645e24399c55b3396aa3318e6cd3094641b2458..aa6d007ada63c712eda18536eab5b472
    "needsDoneTooltip": "把手机交还给 {agent}",
    "needsFirstConnection": "首次连接",
 diff --git a/cmd/pinky/mygo.json b/cmd/pinky/mygo.json
-index 2bb8a9741c0c55326b01eaa70c7bd873c4bb284f..284a5d6d21234d1db7d4c45cb317394d8a7d0332 100644
+index 2bb8a97..3b8ccd9 100644
 --- a/cmd/pinky/mygo.json
 +++ b/cmd/pinky/mygo.json
 @@ -2,7 +2,7 @@
@@ -88,13 +88,13 @@ index 2bb8a9741c0c55326b01eaa70c7bd873c4bb284f..284a5d6d21234d1db7d4c45cb317394d
    "slug": "pinky",
    "identifier": "app.pinky.desktop",
 -  "version": "0.0.0-dev",
-+  "version": "2026.1112.19+sidebar.20261112.8",
++  "version": "2026.1112.19+sidebar.20261112.9",
    "copyright": "Copyright © 2026 DIYgod",
    "icon": "../../assets/icon/pinky-macos-1024.png",
    "out": "../../build/pinky",
 diff --git a/docs/notes/handoff-ack.md b/docs/notes/handoff-ack.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..47bc6da212a279577309c8869bb7cb98926caee4
+index 0000000..47bc6da
 --- /dev/null
 +++ b/docs/notes/handoff-ack.md
 @@ -0,0 +1,18 @@
@@ -118,7 +118,7 @@ index 0000000000000000000000000000000000000000..47bc6da212a279577309c8869bb7cb98
 +- 简体中文。交还卡片在网关接受回执后显示成功，并清楚显示提交中、失败和重试状态。
 diff --git a/ui/handoff_ack_test.go b/ui/handoff_ack_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..c2870374abf605c030e37b884bba18f3453bc549
+index 0000000..c287037
 --- /dev/null
 +++ b/ui/handoff_ack_test.go
 @@ -0,0 +1,229 @@
@@ -352,7 +352,7 @@ index 0000000000000000000000000000000000000000..c2870374abf605c030e37b884bba18f3
 +	t.Fatal("late response was not observed")
 +}
 diff --git a/ui/panel.go b/ui/panel.go
-index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..5dad4f2739777a564c26991b151d2bddea7d83f4 100644
+index 3fb9bf2..588cd1f 100644
 --- a/ui/panel.go
 +++ b/ui/panel.go
 @@ -1,7 +1,9 @@
@@ -496,7 +496,7 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..5dad4f2739777a564c26991b151d2bdd
  type answer struct {
  	need  gateway.NeedView
  	d     gateway.Decision
-@@ -113,31 +185,61 @@ func (a *app) liveAnswers() []answer {
+@@ -113,19 +185,44 @@ func (a *app) liveAnswers() []answer {
  // newPanel makes the floating approval panel: a panel window that floats
  // over every app and shows without taking the keyboard.
  func (a *app) newPanel() {
@@ -521,15 +521,15 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..5dad4f2739777a564c26991b151d2bdd
  			e.PreventDefault()
 -			a.panel.Hide()
 +			panel.Hide()
-+		}
-+	})
+ 		}
+ 	})
 +	panel.OnClosed(func() {
 +		if a.panel == panel {
 +			a.panel = nil
- 		}
- 	})
- }
- 
++		}
++	})
++}
++
 +func (a *app) panelCornerRadius() int {
 +	if a.panelHostOpaque() {
 +		return 24
@@ -542,10 +542,10 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..5dad4f2739777a564c26991b151d2bdd
 +		return 0
 +	}
 +	return 14
-+}
-+
+ }
+ 
  // syncPanel shows the panel while approvals wait and the person cannot see
- // them in the main window, and hides it otherwise. It never takes the
+@@ -133,11 +230,16 @@ func (a *app) newPanel() {
  // keyboard: the person clicks it first, and then Return allows and Esc
  // denies.
  func (a *app) syncPanel() {
@@ -621,9 +621,18 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..5dad4f2739777a564c26991b151d2bdd
  	if x != nil {
  		card.Children(func() { a.panelAnswered(c, *x) })
  		return
-@@ -255,6 +382,29 @@ func (a *app) panelView(c *mg.Context) {
+@@ -253,8 +380,37 @@ func (a *app) panelView(c *mg.Context) {
+ 		if !n.Deadline.IsZero() {
+ 			c.After(250 * time.Millisecond)
  		}
- 		mg.Column(c).Grow(1).MinHeight(0).Padding(12, 16, 16, 16).Gap(2).Children(func() {
+-		mg.Column(c).Grow(1).MinHeight(0).Padding(12, 16, 16, 16).Gap(2).Children(func() {
++		content := mg.Column(c).Padding(12, 16, 16, 16).Gap(2)
++		if a.panelHostOpaque() {
++			content.Shrink(0)
++		} else {
++			content.Grow(1).MinHeight(0)
++		}
++		content.Children(func() {
  			mg.Row(c).MinHeight(24).Gap(8).AlignItems(mg.Center).Children(func() {
 +				collapse := button(c, "", btnOpt{small: true, icon: icChevU, label: locales.TasksDetails()}).
 +					Key("sidebar-collapse-" + n.ID).Width(32).Height(28).Padding(0)
@@ -651,7 +660,31 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..5dad4f2739777a564c26991b151d2bdd
  				if len(asks) > 1 {
  					mg.Row(c).Gap(2).AlignItems(mg.Center).Role(mg.RoleGroup).Label(locales.PanelWaitingApprovals()).Children(func() {
  						if arrowButton(c, icChevL, locales.PanelPrevious(), a.panelIdx == 0).Clicked() {
-@@ -289,7 +439,7 @@ func (a *app) panelView(c *mg.Context) {
+@@ -277,19 +433,29 @@ func (a *app) panelView(c *mg.Context) {
+ 				}
+ 			})
+ 			needEyebrow(c, n)
+-			mg.Text(c, needTitle(n)).FontSize(fsHeadline).FontWeight(fwSemibold).LineHeight(1.3).MaxLines(2).Margin(6, 0, 0, 0).Role(mg.RoleHeading)
++			titleSize, detailSize := float32(fsHeadline), float32(fsSmall)
++			if a.panelHostOpaque() {
++				titleSize, detailSize = 14, 13
++			}
++			title := mg.Text(c, needTitle(n)).FontSize(titleSize).FontWeight(fwSemibold).LineHeight(1.3).Margin(6, 0, 0, 0).Role(mg.RoleHeading)
++			if !a.panelHostOpaque() {
++				title.MaxLines(2)
++			}
+ 			detail := needDetail(n)
+ 			if newAgentNeed(n) {
+ 				_, picker := a.api.(agentScoper)
+ 				detail = agentRequestDetail(n, picker)
+ 			}
+ 			if detail != "" {
+-				mg.Text(c, detail).FontSize(fsSmall).TextColor(p.ink2).MaxLines(2)
++				body := mg.Text(c, detail).FontSize(detailSize).TextColor(p.ink2)
++				if !a.panelHostOpaque() {
++					body.MaxLines(2)
++				}
+ 			}
  			switch {
  			case n.Kind == gateway.NeedHandoff:
  				mg.Spacer(c)
@@ -660,7 +693,7 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..5dad4f2739777a564c26991b151d2bdd
  				return
  			case newAgentNeed(n):
  				mg.Spacer(c)
-@@ -355,6 +505,260 @@ func (a *app) panelView(c *mg.Context) {
+@@ -355,14 +521,284 @@ func (a *app) panelView(c *mg.Context) {
  	})
  }
  
@@ -693,7 +726,7 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..5dad4f2739777a564c26991b151d2bdd
 +						if identity == "" {
 +							identity = locales.NeedsFirstConnection()
 +						}
-+						mg.Text(c, identity).FontSize(12).FontWeight(600).TextColor(p.ink2).SingleLine().Grow(1).MinWidth(0)
++						mg.Text(c, identity).FontSize(11).FontWeight(600).TextColor(p.ink2).SingleLine().Grow(1).MinWidth(0)
 +						if a.sidebarSimulation() {
 +							mg.Text(c, "模拟 / DEMO").FontSize(10).FontWeight(700).TextColor(p.accentInk).SingleLine()
 +						}
@@ -708,7 +741,7 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..5dad4f2739777a564c26991b151d2bdd
 +							mg.Text(c, panelTimeRemaining(n)).FontSize(12).FontWeight(600).TextColor(p.accentInk).Tooltip(panelDeadlineText(n)).SingleLine()
 +						}
 +					})
-+					mg.Text(c, needTitle(n)).FontSize(16).FontWeight(650).LineHeight(1.25).MaxLines(2).TextColor(p.ink)
++					mg.Text(c, needTitle(n)).FontSize(14).FontWeight(650).LineHeight(1.25).MaxLines(2).TextColor(p.ink)
 +				})
 +			})
 +			summaryClicked := summary.Clicked()
@@ -921,9 +954,36 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..5dad4f2739777a564c26991b151d2bdd
  // panelAnswered confirms an answer, as the prototype's allowed and denied
  // states do.
  func (a *app) panelAnswered(c *mg.Context, x answer) {
+ 	p := pal(c)
+-	mg.Column(c).Grow(1).MinHeight(0).Padding(16).Gap(2).Children(func() {
++	content := mg.Column(c).Padding(16).Gap(2)
++	if a.panelHostOpaque() {
++		content.Shrink(0)
++	} else {
++		content.Grow(1).MinHeight(0)
++	}
++	content.Children(func() {
+ 		needEyebrow(c, x.need)
+-		mg.Text(c, needTitle(x.need)).FontSize(fsHeadline).FontWeight(fwSemibold).LineHeight(1.3).MaxLines(2).Margin(6, 0, 0, 0)
+-		mg.Text(c, needDetail(x.need)).FontSize(fsSmall).TextColor(p.ink2).MaxLines(2)
++		titleSize, detailSize := float32(fsHeadline), float32(fsSmall)
++		if a.panelHostOpaque() {
++			titleSize, detailSize = 14, 13
++		}
++		title := mg.Text(c, needTitle(x.need)).FontSize(titleSize).FontWeight(fwSemibold).LineHeight(1.3).Margin(6, 0, 0, 0)
++		if !a.panelHostOpaque() {
++			title.MaxLines(2)
++		}
++		body := mg.Text(c, needDetail(x.need)).FontSize(detailSize).TextColor(p.ink2)
++		if !a.panelHostOpaque() {
++			body.MaxLines(2)
++		}
+ 		if x.need.Screenshot != nil && x.need.Kind == gateway.NeedApproval && !newAgentNeed(x.need) {
+ 			// What was answered, in the room the panel had for it.
+ 			a.approvalFigure(c, x.need, nil).Margin(12, 0, 0, 0).Grow(1).MinHeight(60)
 diff --git a/ui/panel_host.go b/ui/panel_host.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..d322929a8cb135be9791b03d4acf21918bc0e67d
+index 0000000..d322929
 --- /dev/null
 +++ b/ui/panel_host.go
 @@ -0,0 +1,338 @@
@@ -1267,7 +1327,7 @@ index 0000000000000000000000000000000000000000..d322929a8cb135be9791b03d4acf2191
 +}
 diff --git a/ui/panel_host_stub.go b/ui/panel_host_stub.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..7708f493c8aff341f8acdd67a3bb16b2de69b5b3
+index 0000000..7708f49
 --- /dev/null
 +++ b/ui/panel_host_stub.go
 @@ -0,0 +1,15 @@
@@ -1288,7 +1348,7 @@ index 0000000000000000000000000000000000000000..7708f493c8aff341f8acdd67a3bb16b2
 +func (a *app) syncHostedPanel(want bool) bool { return false }
 diff --git a/ui/panel_host_test.go b/ui/panel_host_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..db1dbe9814d7a2db6dbed21b465470022f3924fb
+index 0000000..db1dbe9
 --- /dev/null
 +++ b/ui/panel_host_test.go
 @@ -0,0 +1,195 @@
@@ -1489,13 +1549,14 @@ index 0000000000000000000000000000000000000000..db1dbe9814d7a2db6dbed21b46547002
 +}
 diff --git a/ui/panel_host_windows.go b/ui/panel_host_windows.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..e1c58fab1d96543ea63729c33c57d2da8a1bf98d
+index 0000000..9a6f903
 --- /dev/null
 +++ b/ui/panel_host_windows.go
-@@ -0,0 +1,661 @@
+@@ -0,0 +1,680 @@
 +package ui
 +
 +import (
++	"context"
 +	"encoding/json"
 +	"errors"
 +	"fmt"
@@ -1554,23 +1615,32 @@ index 0000000000000000000000000000000000000000..e1c58fab1d96543ea63729c33c57d2da
 +)
 +
 +type panelHost struct {
-+	directory    string
-+	lease        panelHostLease
-+	processBirth uint64
-+	nonce        string
-+	sequence     uint64
-+	attached     bool
-+	parent       uintptr
-+	seenParent   uintptr
-+	style        uintptr
-+	exStyle      uintptr
-+	owner        uintptr
-+	width        int
-+	height       int
-+	x            int32
-+	y            int32
-+	layoutWait   time.Time
-+	blocked      bool
++	directory                string
++	lease                    panelHostLease
++	processBirth             uint64
++	nonce                    string
++	sequence                 uint64
++	attached                 bool
++	parent                   uintptr
++	seenParent               uintptr
++	style                    uintptr
++	exStyle                  uintptr
++	owner                    uintptr
++	width                    int
++	height                   int
++	x                        int32
++	y                        int32
++	layoutWait               time.Time
++	blocked                  bool
++	batteries                *sidebarBatteryCollector
++	batteryCancel            context.CancelFunc
++	batterySequence          uint64
++	batteryLastNonce         string
++	batteryLastGeneration    uint64
++	batteryLastAttempt       time.Time
++	batteryAttemptNonce      string
++	batteryAttemptGeneration uint64
++	batteryBlocked           bool
 +}
 +
 +type panelHostPublication struct {
@@ -1630,6 +1700,9 @@ index 0000000000000000000000000000000000000000..e1c58fab1d96543ea63729c33c57d2da
 +func (a *app) stopPanelHost() {
 +	if a.panelHost == nil {
 +		return
++	}
++	if a.panelHost.batteryCancel != nil {
++		a.panelHost.batteryCancel()
 +	}
 +	a.restoreHostedPanel(false)
 +	a.publishPanelHost("hidden", "")
@@ -1746,6 +1819,7 @@ index 0000000000000000000000000000000000000000..e1c58fab1d96543ea63729c33c57d2da
 +		a.restoreHostedPanel(want)
 +		host.nonce, host.sequence = spec.Nonce, 0
 +	}
++	a.startSidebarBatteryCollector(host)
 +	if !want {
 +		a.restoreHostedPanel(false)
 +		a.publishPanelHost("hidden", "")
@@ -2128,6 +2202,11 @@ index 0000000000000000000000000000000000000000..e1c58fab1d96543ea63729c33c57d2da
 +	}
 +	err = replacePanelHostFile(name, filepath.Join(host.directory, "panel.json"))
 +	host.recordError(err)
++	if err == nil {
++		// Battery export is a separate, optional lane. Its failures must not
++		// disable or delay the approval-panel transport.
++		_ = a.publishSidebarBatteries(time.Now().UTC())
++	}
 +	return err
 +}
 +
@@ -2156,7 +2235,7 @@ index 0000000000000000000000000000000000000000..e1c58fab1d96543ea63729c33c57d2da
 +}
 diff --git a/ui/panel_host_windows_test.go b/ui/panel_host_windows_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..291d0d8746fc9fcccb95b7471c61c1a6c7f4eb8e
+index 0000000..291d0d8
 --- /dev/null
 +++ b/ui/panel_host_windows_test.go
 @@ -0,0 +1,58 @@
@@ -2220,7 +2299,7 @@ index 0000000000000000000000000000000000000000..291d0d8746fc9fcccb95b7471c61c1a6
 +}
 diff --git a/ui/panel_narrow_test.go b/ui/panel_narrow_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..ea78654e66ee7555b787e769d8cb26f3936c0ec3
+index 0000000..ea78654
 --- /dev/null
 +++ b/ui/panel_narrow_test.go
 @@ -0,0 +1,296 @@
@@ -2521,7 +2600,7 @@ index 0000000000000000000000000000000000000000..ea78654e66ee7555b787e769d8cb26f3
 +	}
 +}
 diff --git a/ui/rightpanel.go b/ui/rightpanel.go
-index 42656aa849253ac2914512a7f010b31f75969c07..9db7e97038cd0f2c9d568cab525aec6af9ea59cd 100644
+index 42656aa..9db7e97 100644
 --- a/ui/rightpanel.go
 +++ b/ui/rightpanel.go
 @@ -115,7 +115,7 @@ func (a *app) needCard(c *mg.Context, n gateway.NeedView, floating bool) {
@@ -2610,7 +2689,7 @@ index 42656aa849253ac2914512a7f010b31f75969c07..9db7e97038cd0f2c9d568cab525aec6a
  		}
  	})
 diff --git a/ui/run.go b/ui/run.go
-index 8d9fcb5dee9971b2bff110567a24e235be7e0454..a6f9cbd027f665f68eab90139db47e3cff3c3652 100644
+index 8d9fcb5..a6f9cbd 100644
 --- a/ui/run.go
 +++ b/ui/run.go
 @@ -249,10 +249,11 @@ type app struct {
@@ -2792,7 +2871,7 @@ index 8d9fcb5dee9971b2bff110567a24e235be7e0454..a6f9cbd027f665f68eab90139db47e3c
  		a.showMain()
 diff --git a/ui/sidebar_appearance_other.go b/ui/sidebar_appearance_other.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..beb6ae8c75d52d47ef3f2aaf757cfdf6a70c76c1
+index 0000000..5dddf37
 --- /dev/null
 +++ b/ui/sidebar_appearance_other.go
 @@ -0,0 +1,11 @@
@@ -2807,9 +2886,571 @@ index 0000000000000000000000000000000000000000..beb6ae8c75d52d47ef3f2aaf757cfdf6
 +func readSidebarAppearanceFile(string, int64) ([]byte, error) {
 +	return nil, os.ErrNotExist
 +}
+diff --git a/ui/sidebar_batteries.go b/ui/sidebar_batteries.go
+new file mode 100644
+index 0000000..f25da3c
+--- /dev/null
++++ b/ui/sidebar_batteries.go
+@@ -0,0 +1,166 @@
++package ui
++
++import (
++	"context"
++	"sync"
++	"time"
++
++	"github.com/DIYgod/pinky/internal/gateway"
++)
++
++const (
++	sidebarBatteryEvery       = time.Minute
++	sidebarBatteriesHeartbeat = 30 * time.Second
++	sidebarBatteriesRetry     = 2 * time.Second
++)
++
++type sidebarBatterySource interface {
++	Devices() []gateway.DeviceView
++	PhoneVitals(ctx context.Context, deviceID string) (gateway.PhoneVitals, error)
++}
++
++type sidebarBatteryDevice struct {
++	StableID     string  `json:"stableId"`
++	Name         string  `json:"name"`
++	Platform     string  `json:"platform"`
++	Model        string  `json:"model"`
++	Online       bool    `json:"online"`
++	Paused       bool    `json:"paused"`
++	Level        *int    `json:"level"`
++	Charging     *bool   `json:"charging"`
++	Plugged      *bool   `json:"plugged"`
++	Full         *bool   `json:"full"`
++	BatteryAtUTC *string `json:"batteryAtUtc"`
++}
++
++type sidebarBatterySnapshot struct {
++	Generation uint64
++	Devices    []sidebarBatteryDevice
++}
++
++type sidebarBatteryCollector struct {
++	source sidebarBatterySource
++	mu     sync.Mutex
++	busy   bool
++	state  sidebarBatterySnapshot
++}
++
++func newSidebarBatteryCollector(source sidebarBatterySource) *sidebarBatteryCollector {
++	return &sidebarBatteryCollector{source: source}
++}
++
++func sidebarBatteriesDue(lastNonce, nonce string, lastGeneration, generation uint64, lastAttempt, now time.Time) bool {
++	return nonce != lastNonce || generation != lastGeneration || lastAttempt.IsZero() ||
++		now.Sub(lastAttempt) >= sidebarBatteriesHeartbeat
++}
++
++func sidebarBatteriesRetryAllowed(lastNonce, nonce string, lastGeneration, generation uint64, lastAttempt, now time.Time) bool {
++	return nonce != lastNonce || generation != lastGeneration || lastAttempt.IsZero() ||
++		now.Sub(lastAttempt) >= sidebarBatteriesRetry
++}
++
++// collect reads through the same read-only vitalsSource used by Pinky's UI.
++// The narrow interface has no lease, connect, action, or capture methods.
++func (c *sidebarBatteryCollector) collect(ctx context.Context) bool {
++	c.mu.Lock()
++	if c.busy {
++		c.mu.Unlock()
++		return false
++	}
++	c.busy = true
++	c.mu.Unlock()
++	defer func() {
++		c.mu.Lock()
++		c.busy = false
++		c.mu.Unlock()
++	}()
++
++	views := c.source.Devices()
++	devices := make([]sidebarBatteryDevice, 0, len(views))
++	for _, d := range views {
++		// Virtual devices are not physical battery candidates. Omitting them
++		// avoids an emulator occupying a consumer's unique-device match.
++		if d.Info.Virtual {
++			continue
++		}
++		id := d.Info.ID
++		if id == "" {
++			continue
++		}
++		item := sidebarBatteryDevice{
++			StableID: id,
++			Name:     d.Info.Name,
++			Platform: string(d.Info.Platform),
++			Model:    d.Info.Model,
++			Online:   vitalsShown(d),
++			Paused:   d.Paused,
++		}
++		// Only real, open, online, unpaused devices are queried.
++		if item.Online {
++			readCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
++			v, err := c.source.PhoneVitals(readCtx, id)
++			cancel()
++			if err == nil && v.Battery != nil && !v.BatteryAt.IsZero() {
++				b := v.Battery
++				level := b.Level
++				charging, plugged, full := b.Charging, b.Plugged, b.Full
++				item.Level = &level
++				item.Charging = &charging
++				item.Plugged = &plugged
++				item.Full = &full
++				at := v.BatteryAt.UTC().Format(time.RFC3339Nano)
++				item.BatteryAtUTC = &at
++			}
++		}
++		devices = append(devices, item)
++	}
++
++	c.mu.Lock()
++	c.state = sidebarBatterySnapshot{Generation: c.state.Generation + 1, Devices: devices}
++	c.mu.Unlock()
++	return true
++}
++
++func (c *sidebarBatteryCollector) run(ctx context.Context) {
++	c.collect(ctx)
++	ticker := time.NewTicker(sidebarBatteryEvery)
++	defer ticker.Stop()
++	for {
++		select {
++		case <-ctx.Done():
++			return
++		case <-ticker.C:
++			c.collect(ctx)
++		}
++	}
++}
++
++func (c *sidebarBatteryCollector) snapshot() sidebarBatterySnapshot {
++	c.mu.Lock()
++	defer c.mu.Unlock()
++	out := sidebarBatterySnapshot{Generation: c.state.Generation, Devices: make([]sidebarBatteryDevice, len(c.state.Devices))}
++	for i, item := range c.state.Devices {
++		out.Devices[i] = item
++		if item.Level != nil {
++			v := *item.Level
++			out.Devices[i].Level = &v
++		}
++		if item.Charging != nil {
++			v := *item.Charging
++			out.Devices[i].Charging = &v
++		}
++		if item.Plugged != nil {
++			v := *item.Plugged
++			out.Devices[i].Plugged = &v
++		}
++		if item.Full != nil {
++			v := *item.Full
++			out.Devices[i].Full = &v
++		}
++		if item.BatteryAtUTC != nil {
++			v := *item.BatteryAtUTC
++			out.Devices[i].BatteryAtUTC = &v
++		}
++	}
++	return out
++}
+diff --git a/ui/sidebar_batteries_test.go b/ui/sidebar_batteries_test.go
+new file mode 100644
+index 0000000..b615c05
+--- /dev/null
++++ b/ui/sidebar_batteries_test.go
+@@ -0,0 +1,187 @@
++package ui
++
++import (
++	"context"
++	"sync"
++	"testing"
++	"time"
++
++	"github.com/DIYgod/pinky/internal/driver"
++	"github.com/DIYgod/pinky/internal/gateway"
++)
++
++// This fixture implements only the read surface the collector is allowed to
++// use; it has no session, lease, connect, action, or capture methods.
++type batteryFixture struct {
++	mu      sync.Mutex
++	devices []gateway.DeviceView
++	values  map[string]gateway.PhoneVitals
++	err     map[string]error
++	calls   []string
++	entered chan struct{}
++	release chan struct{}
++}
++
++func (f *batteryFixture) Devices() []gateway.DeviceView {
++	return append([]gateway.DeviceView(nil), f.devices...)
++}
++
++func (f *batteryFixture) PhoneVitals(ctx context.Context, id string) (gateway.PhoneVitals, error) {
++	f.mu.Lock()
++	f.calls = append(f.calls, id)
++	value, err := f.values[id], f.err[id]
++	entered, release := f.entered, f.release
++	f.mu.Unlock()
++	if entered != nil {
++		select {
++		case entered <- struct{}{}:
++		default:
++		}
++	}
++	if release != nil {
++		select {
++		case <-release:
++		case <-ctx.Done():
++			return gateway.PhoneVitals{}, ctx.Err()
++		}
++	}
++	return value, err
++}
++
++func (f *batteryFixture) callIDs() []string {
++	f.mu.Lock()
++	defer f.mu.Unlock()
++	return append([]string(nil), f.calls...)
++}
++
++func batteryDevice(id string, state driver.State, status gateway.DeviceStatus, paused, virtual bool) gateway.DeviceView {
++	return gateway.DeviceView{
++		Info:   driver.Info{ID: id, Name: id, Model: "fixture model", Platform: driver.IOS, State: state, Virtual: virtual},
++		Status: status,
++		Paused: paused,
++	}
++}
++
++func TestSidebarBatteryCollectorPublishesFreshValuesAndSkipsUnavailableDevices(t *testing.T) {
++	at := time.Date(2026, 11, 12, 4, 5, 6, 123456789, time.FixedZone("fixture", 8*60*60))
++	f := &batteryFixture{
++		devices: []gateway.DeviceView{
++			batteryDevice("ipad-id", driver.StateOnline, gateway.DeviceIdle, false, false),
++			batteryDevice("stale-id", driver.StateOnline, gateway.DeviceIdle, false, false),
++			batteryDevice("offline-id", driver.StateOffline, gateway.DeviceOffline, false, false),
++			batteryDevice("paused-id", driver.StateOnline, gateway.DeviceOffline, true, false),
++			batteryDevice("virtual-id", driver.StateOnline, gateway.DeviceIdle, false, true),
++		},
++		values: map[string]gateway.PhoneVitals{
++			// Zero is a valid battery level and the timestamp must retain its instant.
++			"ipad-id": {Battery: &driver.Battery{Level: 0, Charging: true, Plugged: true, Full: false}, BatteryAt: at},
++			// An expired Gateway value is represented by an empty vitals result.
++			"stale-id": {},
++		},
++		err: map[string]error{"ipad-id": nil},
++	}
++	c := newSidebarBatteryCollector(f)
++	if !c.collect(context.Background()) {
++		t.Fatal("first collection was skipped")
++	}
++	s := c.snapshot()
++	if got, want := f.callIDs(), []string{"ipad-id", "stale-id"}; !equalStrings(got, want) {
++		t.Fatalf("queried devices %v, want only %v", got, want)
++	}
++	if len(s.Devices) != 4 {
++		t.Fatalf("published %d physical devices, want virtual device omitted", len(s.Devices))
++	}
++	ipad := s.Devices[0]
++	if !ipad.Online || ipad.Level == nil || *ipad.Level != 0 || ipad.Charging == nil || !*ipad.Charging ||
++		ipad.Plugged == nil || !*ipad.Plugged || ipad.Full == nil || *ipad.Full || ipad.BatteryAtUTC == nil {
++		t.Fatalf("fresh iPad value lost or changed: %+v", ipad)
++	}
++	if *ipad.BatteryAtUTC != "2026-11-11T20:05:06.123456789Z" {
++		t.Fatalf("source timestamp changed: %s", *ipad.BatteryAtUTC)
++	}
++	for _, item := range s.Devices[1:] {
++		if item.Level != nil || item.Charging != nil || item.Plugged != nil || item.Full != nil || item.BatteryAtUTC != nil {
++			t.Errorf("unavailable device has a battery value: %+v", item)
++		}
++	}
++}
++
++func TestSidebarBatteryCollectorIsSingleFlight(t *testing.T) {
++	f := &batteryFixture{
++		devices: []gateway.DeviceView{batteryDevice("phone", driver.StateOnline, gateway.DeviceIdle, false, false)},
++		values:  map[string]gateway.PhoneVitals{"phone": {}},
++		entered: make(chan struct{}, 1),
++		release: make(chan struct{}),
++	}
++	c := newSidebarBatteryCollector(f)
++	done := make(chan struct{})
++	go func() { c.collect(context.Background()); close(done) }()
++	select {
++	case <-f.entered:
++	case <-time.After(time.Second):
++		t.Fatal("first collection did not reach the vitals source")
++	}
++	if c.collect(context.Background()) {
++		t.Fatal("overlapping collection was accepted")
++	}
++	close(f.release)
++	select {
++	case <-done:
++	case <-time.After(time.Second):
++		t.Fatal("first collection did not finish")
++	}
++	if got := f.callIDs(); len(got) != 1 || got[0] != "phone" {
++		t.Fatalf("single-flight calls: %v", got)
++	}
++	if c.snapshot().Generation != 1 {
++		t.Fatalf("generation = %d, want 1", c.snapshot().Generation)
++	}
++}
++
++func TestSidebarBatteriesHeartbeatAndIdentityChangesPublish(t *testing.T) {
++	now := time.Date(2026, 11, 13, 2, 0, 0, 0, time.UTC)
++	if !sidebarBatteriesDue("", "nonce-a", 0, 1, time.Time{}, now) {
++		t.Fatal("first publication was not due")
++	}
++	last := now
++	if sidebarBatteriesDue("nonce-a", "nonce-a", 1, 1, last, now.Add(sidebarBatteriesHeartbeat-time.Nanosecond)) {
++		t.Fatal("unchanged snapshot published before heartbeat")
++	}
++	if !sidebarBatteriesDue("nonce-a", "nonce-a", 1, 1, last, now.Add(sidebarBatteriesHeartbeat)) {
++		t.Fatal("30-second heartbeat was not due")
++	}
++	if !sidebarBatteriesDue("nonce-a", "nonce-b", 1, 1, last, now) {
++		t.Fatal("nonce generation change was not due immediately")
++	}
++	if !sidebarBatteriesDue("nonce-a", "nonce-a", 1, 2, last, now) {
++		t.Fatal("new collection generation was not due immediately")
++	}
++}
++
++func TestSidebarBatteriesTransientRetryIsThrottled(t *testing.T) {
++	now := time.Date(2026, 11, 13, 2, 0, 0, 0, time.UTC)
++	if sidebarBatteriesRetryAllowed("nonce-a", "nonce-a", 3, 3, now, now.Add(sidebarBatteriesRetry-time.Nanosecond)) {
++		t.Fatal("transient failure retried before two seconds")
++	}
++	if !sidebarBatteriesRetryAllowed("nonce-a", "nonce-a", 3, 3, now, now.Add(sidebarBatteriesRetry)) {
++		t.Fatal("transient failure did not become retryable after two seconds")
++	}
++	if !sidebarBatteriesRetryAllowed("nonce-a", "nonce-b", 3, 3, now, now.Add(time.Millisecond)) {
++		t.Fatal("nonce change did not bypass retry delay")
++	}
++	if !sidebarBatteriesRetryAllowed("nonce-a", "nonce-a", 3, 4, now, now.Add(time.Millisecond)) {
++		t.Fatal("new sample generation did not bypass retry delay")
++	}
++}
++
++func equalStrings(a, b []string) bool {
++	if len(a) != len(b) {
++		return false
++	}
++	for i := range a {
++		if a[i] != b[i] {
++			return false
++		}
++	}
++	return true
++}
+diff --git a/ui/sidebar_batteries_windows.go b/ui/sidebar_batteries_windows.go
+new file mode 100644
+index 0000000..e53a3d0
+--- /dev/null
++++ b/ui/sidebar_batteries_windows.go
+@@ -0,0 +1,126 @@
++//go:build windows
++
++package ui
++
++import (
++	"context"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"os"
++	"path/filepath"
++	"strconv"
++	"time"
++
++	"golang.org/x/sys/windows"
++)
++
++const sidebarBatteriesSchema = "pinky.sidebar-batteries.v1"
++const sidebarBatteriesMaxBytes = 64 << 10
++
++type sidebarBatteriesDocument struct {
++	Schema               string                 `json:"schema"`
++	PID                  int                    `json:"pid"`
++	ProcessBirthFileTime string                 `json:"processBirthFileTime"`
++	Nonce                string                 `json:"nonce"`
++	UpdatedUTC           string                 `json:"updatedUtc"`
++	Sequence             uint64                 `json:"sequence"`
++	Devices              []sidebarBatteryDevice `json:"devices"`
++}
++
++func (a *app) startSidebarBatteryCollector(host *panelHost) {
++	if host == nil || host.batteries != nil || host.batteryCancel != nil {
++		return
++	}
++	source, ok := a.api.(sidebarBatterySource)
++	if !ok {
++		return
++	}
++	ctx, cancel := context.WithCancel(a.ctx)
++	host.batteries = newSidebarBatteryCollector(source)
++	host.batteryCancel = cancel
++	go host.batteries.run(ctx)
++}
++
++func (a *app) publishSidebarBatteries(now time.Time) error {
++	host := a.panelHost
++	if host == nil || host.batteries == nil || host.batteryBlocked || host.nonce == "" {
++		return nil
++	}
++	snapshot := host.batteries.snapshot()
++	if snapshot.Generation == 0 {
++		return nil
++	}
++	if !sidebarBatteriesDue(host.batteryLastNonce, host.nonce, host.batteryLastGeneration, snapshot.Generation, host.batteryLastAttempt, now) {
++		return nil
++	}
++	if !sidebarBatteriesRetryAllowed(host.batteryAttemptNonce, host.nonce, host.batteryAttemptGeneration, snapshot.Generation, host.batteryLastAttempt, now) {
++		return nil
++	}
++	host.batteryLastAttempt = now
++	host.batteryAttemptNonce = host.nonce
++	host.batteryAttemptGeneration = snapshot.Generation
++	if err := validatePanelHostDirectory(host.directory); err != nil {
++		host.disableBatteryLane(err)
++		return err
++	}
++	destination := filepath.Join(host.directory, "batteries.json")
++	if err := panelHostNoReparse(destination); err != nil {
++		host.disableBatteryLane(err)
++		return err
++	}
++	sequence := host.batterySequence + 1
++	doc := sidebarBatteriesDocument{
++		Schema:               sidebarBatteriesSchema,
++		PID:                  os.Getpid(),
++		ProcessBirthFileTime: strconv.FormatUint(host.processBirth, 10),
++		Nonce:                host.nonce,
++		UpdatedUTC:           now.UTC().Format(time.RFC3339Nano),
++		Sequence:             sequence,
++		Devices:              snapshot.Devices,
++	}
++	data, err := json.Marshal(doc)
++	if err != nil {
++		host.recordBatteryError(err)
++		return err
++	}
++	if len(data) == 0 || len(data) > sidebarBatteriesMaxBytes {
++		err := fmt.Errorf("battery document exceeds %d bytes", sidebarBatteriesMaxBytes)
++		host.recordBatteryError(err)
++		return err
++	}
++	file, err := os.CreateTemp(host.directory, ".batteries-*.tmp")
++	if err != nil {
++		host.recordBatteryError(err)
++		return err
++	}
++	temporary := file.Name()
++	defer os.Remove(temporary)
++	if _, err := file.Write(data); err != nil {
++		_ = file.Close()
++		host.recordBatteryError(err)
++		return err
++	}
++	if err := file.Close(); err != nil {
++		host.recordBatteryError(err)
++		return err
++	}
++	if err := replacePanelHostFile(temporary, destination); err != nil {
++		host.recordBatteryError(err)
++		return err
++	}
++	host.batterySequence = sequence
++	host.batteryLastNonce = host.nonce
++	host.batteryLastGeneration = snapshot.Generation
++	return nil
++}
++
++func (h *panelHost) recordBatteryError(err error) {
++	if errors.Is(err, os.ErrPermission) || errors.Is(err, windows.ERROR_ACCESS_DENIED) {
++		h.batteryBlocked = true
++	}
++}
++
++func (h *panelHost) disableBatteryLane(error) {
++	h.batteryBlocked = true
++}
+diff --git a/ui/sidebar_batteries_windows_test.go b/ui/sidebar_batteries_windows_test.go
+new file mode 100644
+index 0000000..745428c
+--- /dev/null
++++ b/ui/sidebar_batteries_windows_test.go
+@@ -0,0 +1,59 @@
++//go:build windows
++
++package ui
++
++import (
++	"encoding/json"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++)
++
++func TestSidebarBatteriesJSONAndAtomicReplacement(t *testing.T) {
++	level, charging, plugged, full := 0, true, true, false
++	at := "2026-11-13T01:59:58.123456789Z"
++	doc := sidebarBatteriesDocument{
++		Schema:               sidebarBatteriesSchema,
++		PID:                  4321,
++		ProcessBirthFileTime: "134086232501234567",
++		Nonce:                "5c73dcac845b49ce919ec64cb76fe3e9",
++		UpdatedUTC:           time.Date(2026, 11, 13, 2, 0, 30, 0, time.UTC).Format(time.RFC3339Nano),
++		Sequence:             8,
++		Devices: []sidebarBatteryDevice{
++			{StableID: "ipad-id", Platform: "ios", Online: true, Level: &level, Charging: &charging, Plugged: &plugged, Full: &full, BatteryAtUTC: &at},
++			{StableID: "offline-id", Platform: "android", Level: nil, Charging: nil, Plugged: nil, Full: nil, BatteryAtUTC: nil},
++		},
++	}
++	data, err := json.Marshal(doc)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var got sidebarBatteriesDocument
++	if err := json.Unmarshal(data, &got); err != nil {
++		t.Fatal(err)
++	}
++	if got.Schema != sidebarBatteriesSchema || got.PID != 4321 || got.Nonce != doc.Nonce || got.Sequence != 8 ||
++		len(got.Devices) != 2 || got.Devices[0].Level == nil || *got.Devices[0].Level != 0 ||
++		got.Devices[0].BatteryAtUTC == nil || *got.Devices[0].BatteryAtUTC != at ||
++		got.Devices[1].Level != nil || got.Devices[1].BatteryAtUTC != nil {
++		t.Fatalf("battery DTO did not preserve its contract: %+v", got)
++	}
++
++	directory := t.TempDir()
++	destination := filepath.Join(directory, "batteries.json")
++	if err := os.WriteFile(destination, []byte("old snapshot"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	temporary := filepath.Join(directory, ".batteries-fixture.tmp")
++	if err := os.WriteFile(temporary, data, 0o600); err != nil {
++		t.Fatal(err)
++	}
++	if err := replacePanelHostFile(temporary, destination); err != nil {
++		t.Fatalf("atomic battery replacement failed: %v", err)
++	}
++	read, err := os.ReadFile(destination)
++	if err != nil || string(read) != string(data) {
++		t.Fatalf("replacement bytes differ: %v", err)
++	}
++}
 diff --git a/ui/sidebar_input_log_test.go b/ui/sidebar_input_log_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..76df9506fd3f8f669b712e919b08e107ca22be2d
+index 0000000..76df950
 --- /dev/null
 +++ b/ui/sidebar_input_log_test.go
 @@ -0,0 +1,209 @@
@@ -3022,8 +3663,218 @@ index 0000000000000000000000000000000000000000..76df9506fd3f8f669b712e919b08e107
 +		})
 +	}
 +}
+diff --git a/ui/sidebar_typography_test.go b/ui/sidebar_typography_test.go
+new file mode 100644
+index 0000000..d2bd3c9
+--- /dev/null
++++ b/ui/sidebar_typography_test.go
+@@ -0,0 +1,204 @@
++package ui
++
++import (
++	"image/png"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++
++	mg "github.com/egoist/mygo/ui"
++
++	"github.com/DIYgod/pinky/cmd/pinky/locales"
++	"github.com/DIYgod/pinky/internal/gateway"
++	"github.com/DIYgod/pinky/ui/fakeapi"
++)
++
++const typographyFixtureNeedID = "demo-need-typography-fixture"
++
++func typographyFixture(language string) gateway.NeedView {
++	title, detail :=
++		"A very long synthetic handoff title for checking the sidebar text layout across narrow widths and confirming its complete continuation remains available while the parent scroll view reaches its full intrinsic height. This test data is a demo fixture only.",
++		"This demo-only detail uses a long English explanation with enough words to wrap across many lines, then includes an intentionally long unbroken token: PINKYTYPOGRAPHYDEMOabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789. It ends with a visible synthetic marker: DEMO END OF DETAIL."
++	if language == "zh-Hans" {
++		title = "这是一段用于检查窄侧栏排版的合成中文交接标题，内容故意较长以覆盖多行显示和滚动边界，并继续检查超过两行的标题是否能在详情滚动内容中完整呈现。这里只使用明确标注的演示测试数据，不对应任何真实请求。"
++		detail = "这是仅供排版检查使用的合成中文说明。文字足够长，会在固定宽度的详情面板中换成多行，并持续到视口之外。以下是一个超长连续标记：PINKYTYPOGRAPHYDEMOabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789。结尾标记：演示详情末尾。"
++	}
++	now := time.Now()
++	return gateway.NeedView{
++		ID: typographyFixtureNeedID, Kind: gateway.NeedHandoff, DeviceID: "demo-device-fixture", TaskID: "demo-task-fixture",
++		DeviceName: "Demo device", Agent: "Demo agent", Title: title, Detail: detail,
++		Created: now, Deadline: now.Add(time.Minute),
++	}
++}
++
++func captureTypographyPNG(t *testing.T, name string, tt *mg.Tester) {
++	t.Helper()
++	dir := os.Getenv("PINKY_TYPOGRAPHY_ARTIFACT_DIR")
++	if dir == "" {
++		return
++	}
++	if err := os.MkdirAll(dir, 0o755); err != nil {
++		t.Fatal(err)
++	}
++	f, err := os.Create(filepath.Join(dir, name))
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer f.Close()
++	if err := png.Encode(f, tt.Image()); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func TestSidebarTypographySyntheticCapture(t *testing.T) {
++	phase := os.Getenv("PINKY_TYPOGRAPHY_PHASE")
++	if phase == "" {
++		phase = "capture"
++	}
++	for _, language := range []string{"en", "zh-Hans"} {
++		t.Run(language, func(t *testing.T) {
++			if language == "zh-Hans" {
++				inLanguage(t, language)
++			}
++			n := typographyFixture(language)
++			ta := newTestApp(t, fakeapi.NoPhones)
++			ta.opt.Version = "0.0.0-demo"
++			ta.panelHost = &panelHost{}
++			ta.needs = []gateway.NeedView{n}
++
++			compact := mg.NewTester(ta.panelView, panelHostW, panelHostH)
++			if compact.Image().Bounds().Dx() != panelHostW || compact.Image().Bounds().Dy() != panelHostH {
++				t.Fatalf("compact fixture size = %v, want %dx%d", compact.Image().Bounds(), panelHostW, panelHostH)
++			}
++			captureTypographyPNG(t, phase+"-"+language+"-compact.png", compact)
++			titleBox, ok := compact.Find(n.Title)
++			if !ok || titleBox.H > 38 || titleBox.W > panelHostW-100 {
++				t.Fatalf("compact title exceeds its two-line 80-DIP layout: %+v, found=%v", titleBox, ok)
++			}
++			metaBox, ok := compact.Find("Demo device")
++			if !ok || metaBox.H > 16 {
++				t.Fatalf("compact metadata exceeds the 11px role: %+v, found=%v", metaBox, ok)
++			}
++
++			actionNeed := n
++			actionNeed.ID = "demo-need-action-fixture"
++			actionNeed.Kind = gateway.NeedApproval
++			actionNeed.Unblock = true
++			actionApp := newTestApp(t, fakeapi.NoPhones)
++			actionApp.opt.Version = "0.0.0-demo"
++			actionApp.panelHost = &panelHost{}
++			actionApp.needs = []gateway.NeedView{actionNeed}
++			action := mg.NewTester(actionApp.panelView, panelHostW, panelHostH)
++			captureTypographyPNG(t, phase+"-"+language+"-long-action.png", action)
++			allowTask, ok := action.Find(locales.NeedsAllowTask())
++			if !ok || allowTask.W != 76 || allowTask.H != 32 {
++				t.Fatalf("long action must remain in a 76x32 button: %+v, found=%v", allowTask, ok)
++			}
++
++			ta.panelNeedID = n.ID
++			ta.panelExpandedNeedID = n.ID
++			expanded := mg.NewTester(ta.panelView, panelHostW, panelHostHandoffH)
++			if expanded.Image().Bounds().Dx() != panelHostW || expanded.Image().Bounds().Dy() != panelHostHandoffH {
++				t.Fatalf("expanded fixture size = %v, want %dx%d", expanded.Image().Bounds(), panelHostW, panelHostHandoffH)
++			}
++			captureTypographyPNG(t, phase+"-"+language+"-detail.png", expanded)
++			detail, ok := expanded.Find(n.Detail)
++			if !ok || detail.H < 50 {
++				t.Fatalf("detail has no intrinsic multiline height: %+v, found=%v", detail, ok)
++			}
++			titleBox, ok = expanded.Find(n.Title)
++			if !ok || titleBox.H <= 40 {
++				t.Fatalf("expanded title does not preserve its full three-plus-line height: %+v, found=%v", titleBox, ok)
++			}
++			expanded.Scroll(panelHostW/2, panelHostHandoffH-24, 0, 5000)
++			expanded.Frame()
++			captureTypographyPNG(t, phase+"-"+language+"-detail-scrolled.png", expanded)
++			detail, ok = expanded.Find(n.Detail)
++			if !ok || detail.Y+detail.H > panelHostHandoffH {
++				t.Fatalf("detail did not scroll through its intrinsic end: %+v, found=%v", detail, ok)
++			}
++			done, ok := expanded.Find(locales.NeedsDone())
++			if !ok || done.Y < 0 || done.Y+done.H > panelHostHandoffH {
++				t.Fatalf("handoff Done control is not reachable at the scroll end: %+v, found=%v", done, ok)
++			}
++
++			answeredApp := newTestApp(t, fakeapi.NoPhones)
++			answeredApp.opt.Version = "0.0.0-demo"
++			answeredApp.panelHost = &panelHost{}
++			answeredApp.answered = []answer{{need: n, d: gateway.AllowOnce, until: time.Now().Add(time.Minute)}}
++			answeredApp.panelNeedID = n.ID
++			answeredApp.panelExpandedNeedID = n.ID
++			answered := mg.NewTester(answeredApp.panelView, panelHostW, panelHostHandoffH)
++			captureTypographyPNG(t, phase+"-"+language+"-answered.png", answered)
++			answeredTitle, ok := answered.Find(n.Title)
++			if !ok || answeredTitle.H <= 40 {
++				t.Fatalf("answered title does not preserve its full multiline height: %+v, found=%v", answeredTitle, ok)
++			}
++			answered.Scroll(panelHostW/2, panelHostHandoffH-24, 0, 5000)
++			answered.Frame()
++			captureTypographyPNG(t, phase+"-"+language+"-answered-scrolled.png", answered)
++			answerDetail, ok := answered.Find(n.Detail)
++			if !ok || answerDetail.Y+answerDetail.H > panelHostHandoffH {
++				t.Fatalf("answered detail did not scroll through its end: %+v, found=%v; texts=%q", answerDetail, ok, answered.Texts())
++			}
++			handedBack, ok := answered.Find(locales.PanelHandedBack())
++			if !ok || handedBack.Y < 0 || handedBack.Y+handedBack.H > panelHostHandoffH {
++				t.Fatalf("answered status is not reachable at the scroll end: %+v, found=%v", handedBack, ok)
++			}
++		})
++	}
++}
++
++func TestSidebarTypographySummaryAndDoneRemainSeparate(t *testing.T) {
++	n := typographyFixture("en")
++	ta := newTestApp(t, fakeapi.NoPhones)
++	ta.opt.Version = "0.0.0-demo"
++	ta.panelHost = &panelHost{}
++	ta.needs = []gateway.NeedView{n}
++	recorder := &sidebarRecordingAPI{API: ta.app.api, calls: make(chan sidebarDecisionCall, 1)}
++	ta.app.api = recorder
++	tt := mg.NewTester(ta.panelView, panelHostW, panelHostH)
++
++	summary, ok := tt.Find(n.Title)
++	if !ok {
++		t.Fatalf("synthetic summary title missing: %q", tt.Texts())
++	}
++	done, ok := tt.Find(locales.NeedsDone())
++	if !ok || (summary.X < done.X+done.W && done.X < summary.X+summary.W && summary.Y < done.Y+done.H && done.Y < summary.Y+summary.H) {
++		t.Fatalf("summary and Done hit regions overlap: summary=%+v Done=%+v", summary, done)
++	}
++	if err := tt.Click(n.Title); err != nil {
++		t.Fatal(err)
++	}
++	if ta.panelExpandedNeedID != n.ID || len(ta.answered) != 0 || len(recorder.calls) != 0 {
++		t.Fatalf("summary click did not only expand details: expanded=%q answered=%+v", ta.panelExpandedNeedID, ta.answered)
++	}
++	if err := tt.Click(locales.TasksDetails()); err != nil {
++		t.Fatal(err)
++	}
++	if ta.panelExpandedNeedID != "" {
++		t.Fatalf("collapse click did not fold the detail: %q", ta.panelExpandedNeedID)
++	}
++	if err := tt.Click(locales.NeedsDone()); err != nil {
++		t.Fatal(err)
++	}
++	select {
++	case call := <-recorder.calls:
++		if call.id != n.ID || call.decision != gateway.AllowOnce {
++			t.Fatalf("Done submitted the wrong request: %+v", call)
++		}
++	case <-time.After(time.Second):
++		t.Fatal("explicit Done control did not reach the synthetic API")
++	}
++}
++
++func TestSidebarTypographyFixtureHasNoRealNeedData(t *testing.T) {
++	n := typographyFixture("en")
++	if n.ID != typographyFixtureNeedID || n.DeviceID != "demo-device-fixture" || n.TaskID != "demo-task-fixture" {
++		t.Fatalf("unexpected fixture identity: %+v", n)
++	}
++	if locales.NeedsDone() == "" {
++		t.Fatal("demo fixture action label is empty")
++	}
++}
 diff --git a/ui/style.go b/ui/style.go
-index 9e5bc527b9df8cb9c0610845d3cfd4f823439810..40398edd37439a7103aced57890c1b0234e7e3b0 100644
+index 9e5bc52..40398ed 100644
 --- a/ui/style.go
 +++ b/ui/style.go
 @@ -1,6 +1,12 @@

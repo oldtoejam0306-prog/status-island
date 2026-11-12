@@ -6,6 +6,14 @@ function Hash([string]$path){(Get-FileHash -Algorithm SHA256 -LiteralPath $path)
 function New-Source([string]$path,[bool]$withMonitor=$false){[IO.Directory]::CreateDirectory($path)|Out-Null;[IO.File]::WriteAllText((Join-Path $path 'layout.xml'),'<layout source="fixture"/>',[Text.UTF8Encoding]::new($false));[IO.File]::WriteAllText((Join-Path $path 'layout.xml.bak'),'<layout source="backup-fixture"/>',[Text.UTF8Encoding]::new($false));[IO.File]::WriteAllText((Join-Path $path 'pos.json'),'{"x":7}',[Text.UTF8Encoding]::new($false));if($withMonitor){$json='{"unread":"'+([string][char]0x4E2D*524288)+'"}';[IO.File]::WriteAllText((Join-Path $path 'aihot-monitor.json'),$json,[Text.UTF8Encoding]::new($false))}}
 $root=Join-Path $env:TEMP ('SidebarStateImport-'+[guid]::NewGuid().ToString('N'))
 try{
+  $initialized=Join-Path $root 'initialized';$candidateState=Join-Path $PSScriptRoot '..\Candidate.State.ps1'
+  & $candidateState -Initialize -StateHome $initialized
+  $batteryConfig=Join-Path $initialized 'device-battery-connection.json'
+  $batteryExample=Get-Content -LiteralPath $batteryConfig -Raw|ConvertFrom-Json
+  Check ($batteryExample.schema-eq'pinky.device-battery-connection.v1'-and-not$batteryExample.enabled-and[string]::IsNullOrEmpty($batteryExample.host)-and[string]::IsNullOrEmpty($batteryExample.account)-and[string]::IsNullOrEmpty($batteryExample.keyFile)-and[string]::IsNullOrEmpty($batteryExample.knownHostsFile)) 'first-run battery configuration is disabled with blank SSH connection fields'
+  [IO.File]::WriteAllText($batteryConfig,'local-user-config',[Text.UTF8Encoding]::new($false))
+  & $candidateState -Initialize -StateHome $initialized
+  Check ((Get-Content -LiteralPath $batteryConfig -Raw)-eq'local-user-config') 'reinitialization preserves existing battery configuration'
   $source=Join-Path $root 'source';$target=Join-Path $root 'target';New-Source $source $true
   $monitorSource=Join-Path $source 'aihot-monitor.json';$monitorBytes=([IO.FileInfo]::new($monitorSource)).Length
   Check ($monitorBytes-gt1048576-and$monitorBytes-lt33554432) 'AIHOT fixture exceeds 1 MiB and stays below its 32 MiB limit'

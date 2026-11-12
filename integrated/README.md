@@ -11,10 +11,13 @@ Configure the following files in the local data directory before enabling integr
 - `config.example.json` → `config.json`
 - `pinky-host-connection.example.json` → `pinky-host-connection.json`
 - `pinky-start.example.json` → `pinky-start.json`
+- `device-battery-connection.example.json` → `device-battery-connection.json`
 
 The examples contain empty values. Do not commit local copies. `config.json` supports optional `ccSwitchLaunch` and Autoloop fields. Autoloop defaults disabled. To enable it, supply an explicit host, account, key-file path, remote node executable and remote script path. Only restricted host/account/path characters are accepted. Windows OpenSSH is invoked with batch mode and strict host key checking. If configuration is invalid, Autoloop reports unavailable; if disabled or absent, it stays offline.
 
-Pinky startup is also disabled by default. The optional `Start-PinkyFusion.ps1` entry requires explicit candidate/official executable paths and SHA256 values, a profile directory and a host directory beneath `%LOCALAPPDATA%\StatusIsland\PinkyHost`. The host trust root stays fixed there even when `STATUS_ISLAND_HOME` changes the panel's configuration and layout directory. With an enabled local config, it checks the host configuration and executable hashes, defers while there is a pending request, and uses Pinky's normal control flow without sending phone actions.
+Pinky startup is also disabled by default. The optional `Start-PinkyFusion.ps1` entry requires an explicit candidate executable path and SHA256, a profile directory and a host directory beneath `%LOCALAPPDATA%\StatusIsland\PinkyHost`. It uses the configured candidate itself for Pinky's `needs` and `quit` control commands; it does not depend on a separately installed official executable or a fixed `.8`/`.9` binary pin. The host trust root stays fixed there even when `STATUS_ISLAND_HOME` changes the panel's configuration and layout directory. With an enabled local config, it checks the host configuration and executable hash, defers while there is a pending request, and uses Pinky's normal control flow without sending phone actions.
+
+Mac battery polling is opt-in. First-run setup creates `device-battery-connection.json` with `enabled: false` and empty host, account, SSH key, known-hosts and device-ID fields. Fill it locally only after configuring the Mac host and SSH trust; it is not committed or included in public packages. iPad and phone levels come from the separate battery lane of an enabled, trusted Pinky connection; Pinky itself remains disabled by default. This frontend lane does not start a task or lease. Paused or ambiguous devices remain unavailable. Synthetic fixtures do not represent live device acceptance.
 
 The following environment settings configure local integrations.
 
