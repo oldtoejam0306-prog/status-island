@@ -132,6 +132,7 @@ namespace IslandIntegrated {
     bool aihotInboxExpanded;
     readonly PinkySidebarSession pinkySession;
     readonly DeviceBatterySource deviceBatteries;
+    readonly DesktopSwitchLauncher desktopSwitch;
     int deviceBatteryDirty=1;
     PinkyPanelLease pinkyPanel = new PinkyPanelLease();
     bool pinkyReading, pinkyDismissed;
@@ -144,6 +145,7 @@ namespace IslandIntegrated {
     public DeviceBatterySnapshot DeviceBatteryView { get { return deviceBatteries.Snapshot(DateTimeOffset.UtcNow); } }
     public string DeviceBatterySignature { get { return deviceBatteries.Signature(DateTimeOffset.UtcNow); } }
     public bool ConsumeDeviceBatteryDirty(){return Interlocked.Exchange(ref deviceBatteryDirty,0)!=0;}
+    public ToolStripMenuItem CreateDesktopSwitchMenu() { return desktopSwitch.CreateMenu(); }
     void OnDeviceBatteryChanged(object sender,EventArgs e){Interlocked.Exchange(ref deviceBatteryDirty,1);}
     Size PinkyPanelSize
     {
@@ -511,6 +513,7 @@ namespace IslandIntegrated {
       aihot.InboxRequested+=(sender,e)=>OpenAihotInbox();
       pinkySession = new PinkySidebarSession(Path.Combine(Path.GetDirectoryName(file), "pinky-host-connection.json"));
       deviceBatteries = new DeviceBatterySource(Path.Combine(Path.GetDirectoryName(file), "device-battery-connection.json"));
+      desktopSwitch = new DesktopSwitchLauncher(Path.Combine(Path.GetDirectoryName(file), "desktop-switch-connection.json"));
       deviceBatteries.Changed+=OnDeviceBatteryChanged;
       status=linkedStatus;lyricsSource=LyricsCombinedSource.FromApprovedConfiguration(Path.Combine(Path.GetDirectoryName(file),"lyrics-connection.json"));
       weatherProvider=OpenMeteoWeatherProvider.FromApprovedConfiguration(Path.Combine(Path.GetDirectoryName(file),"weather-connection.json"));path=file; layout=Load(file);localSource.NetworkSnapshotPath=Path.Combine(Path.GetDirectoryName(file),"network-readonly.json");localSource.BalanceSnapshotPath=Path.Combine(Path.GetDirectoryName(file),"balance-readonly.json");localSource.ActivitySnapshotPath=Path.Combine(Path.GetDirectoryName(file),"agent-activity.json");localSource.BalanceConnectionPath=Path.Combine(Path.GetDirectoryName(file),"balance-connection.json");
@@ -530,6 +533,7 @@ namespace IslandIntegrated {
       foreach(var id in new[]{"music","shortcuts","clock","weather","autoloop","aihot"}) { string key=id; var item=menu.Items.Add(NameOf(id)); item.Click+=(s,e)=> { if(CurrentLayout.Add(key)) { Save(); Rebuild(); } }; }
       add.Click+=(s,e)=>{if(!editing){BeginEditing();return;}menu.Show(add,0,add.Height);}; menu.Opening+=(s,e)=>{ foreach(ToolStripItem i in menu.Items) i.Enabled=!CurrentLayout.Cards.Any(c=>NameOf(c.Id)==i.Text); };
       var context=new ContextMenuStrip();
+      context.Items.Add(desktopSwitch.CreateMenu());
       var manage=context.Items.Add("\u7BA1\u7406\u5C0F\u7EC4\u4EF6",null,(sender,e)=>{if(editing)SaveEditing();else BeginEditing();});context.Opening+=(sender,e)=>manage.Text=editing?"保存布局并退出编辑":"管理小组件";
       context.Items.Add("\u56FA\u5B9A\u5C55\u5F00",null,(sender,e)=>{state.Pinned=!state.Pinned;CurrentLayout.Pinned=state.Pinned;Save();});
       var reduce=context.Items.Add("\u51CF\u5C11\u52A8\u6001\u6548\u679C") as ToolStripMenuItem;

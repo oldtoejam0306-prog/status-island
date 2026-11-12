@@ -21,6 +21,12 @@ class LayoutTests {
    var clockNormalized=new Layout(); clockNormalized.Cards.Add(new Card{Id="clock",Size="bad"}); clockNormalized.Cards.Add(new Card{Id="clock"}); clockNormalized.Normalize(); Check(clockNormalized.Cards.Count==1 && clockNormalized.Cards[0].Id=="clock" && clockNormalized.Cards[0].Size=="中","clock normalization");
    Check(Layout.Default().Cards.Exists(c=>c.Id=="clock"),"clock visible by default");
    var empty=new Layout(); LayoutStore.Save(path,empty); Check(LayoutStore.Load(path).Cards.Count==0,"empty user layout persists");
+   foreach(string action in new[]{"local","macbook","ipad-mac","overview"}) {
+    var launch=DesktopSwitchLauncher.CreateStartInfo(@"C:\Apps\Desktop Switch.exe",action);
+    Check(launch.FileName==@"C:\Apps\Desktop Switch.exe"&&launch.Arguments=="--action "+action&&!launch.UseShellExecute&&launch.CreateNoWindow,"desktop launch "+action);
+   }
+   bool invalidAction=false;try{DesktopSwitchLauncher.CreateStartInfo(@"C:\Apps\Desktop Switch.exe","quit");}catch(ArgumentOutOfRangeException){invalidAction=true;}Check(invalidAction,"desktop menu rejects unsupported action");
+   bool relativePath=false;try{DesktopSwitchLauncher.CreateStartInfo("DesktopSwitch.exe","local");}catch(ArgumentException){relativePath=true;}Check(relativePath,"desktop menu requires an absolute executable path");
   } finally { Directory.Delete(dir,true); }
  }
 }

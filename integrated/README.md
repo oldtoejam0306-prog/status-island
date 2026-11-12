@@ -12,12 +12,15 @@ Configure the following files in the local data directory before enabling integr
 - `pinky-host-connection.example.json` → `pinky-host-connection.json`
 - `pinky-start.example.json` → `pinky-start.json`
 - `device-battery-connection.example.json` → `device-battery-connection.json`
+- `desktop-switch-connection.example.json` → `desktop-switch-connection.json`
 
 The examples contain empty values. Do not commit local copies. `config.json` supports optional `ccSwitchLaunch` and Autoloop fields. Autoloop defaults disabled. To enable it, supply an explicit host, account, key-file path, remote node executable and remote script path. Only restricted host/account/path characters are accepted. Windows OpenSSH is invoked with batch mode and strict host key checking. If configuration is invalid, Autoloop reports unavailable; if disabled or absent, it stays offline.
 
 Pinky startup is also disabled by default. The optional `Start-PinkyFusion.ps1` entry requires an explicit candidate executable path and SHA256, a profile directory and a host directory beneath `%LOCALAPPDATA%\StatusIsland\PinkyHost`. It uses the configured candidate itself for Pinky's `needs` and `quit` control commands; it does not depend on a separately installed official executable or a fixed `.8`/`.9` binary pin. The host trust root stays fixed there even when `STATUS_ISLAND_HOME` changes the panel's configuration and layout directory. With an enabled local config, it checks the host configuration and executable hash, defers while there is a pending request, and uses Pinky's normal control flow without sending phone actions.
 
 Mac battery polling is opt-in. First-run setup creates `device-battery-connection.json` with `enabled: false` and empty host, account, SSH key, known-hosts and device-ID fields. Fill it locally only after configuring the Mac host and SSH trust; it is not committed or included in public packages. iPad and phone levels come from the separate battery lane of an enabled, trusted Pinky connection; Pinky itself remains disabled by default. This frontend lane does not start a task or lease. Paused or ambiguous devices remain unavailable. Synthetic fixtures do not represent live device acceptance.
+
+Desktop switching is available from the status panel and sidebar menus, with local, MacBook Pro, iPad Mac and overview actions. The controller executable is read from local `desktop-switch-connection.json`. First-run setup copies the disabled-empty example when the file is missing and preserves existing local configuration. The current trial awaits manual menu and local-action acceptance.
 
 The following environment settings configure local integrations.
 
@@ -40,5 +43,6 @@ The activity estimate reads only recent modification times. The estimate can ret
 - The user confirmed Autoloop details and submission; the backend state/choice reconciled with a resumed fixed confirmation and the snapshot showed zero pending items. The acceptance rule returned a fixed confirmation. Public configuration keeps the remote bridge disabled by default.
 - Normal update handoff backs up `layout.xml`, `layout.xml.bak`, `pos.json` and `aihot-monitor.json`. The AIHOT limit is 32 MiB and each other state file has a 1 MiB limit. The state import helper has fixtures for hashes, backups, oversized input and partial-failure prevention. Rollback verification covers the parent source pin and four state backups. Executed rollback remains pending.
 - The development installation passed normal same-version menu exit/restart and stable registration. WinPS 5.1 AfterRestart passed six checks for layout, backups, recent city history, position and five runtime configs.
+- The desktop-switch menu is deployed as a pending trial. Its six-output build, all18 layout/action checks and configuration initialization checks passed. Menu visuals and the local action through the running menu await manual acceptance.
 
 Stable registration passed on the development installation after normal same-version exit/restart. Cross-machine and multi-display/DPI behavior remains unverified.

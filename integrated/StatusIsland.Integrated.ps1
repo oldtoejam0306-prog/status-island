@@ -588,6 +588,7 @@ $script:ticker.sys = @('GPU / 显存 · 不可用')
 foreach ($row in $script:view.rows) { $row.v = '不可用' }
 foreach ($metric in $script:view.metrics) { $metric.v = '—'; $metric.pct = 0 }
 $controller = New-Object IslandIntegrated.App (Join-Path $Root 'layout.xml'), $form
+$menu.Items.Insert(2,$controller.CreateDesktopSwitchMenu())
 $controller.StatusShadowMargin=$M
 $script:lastLegacyStamp=''
 $script:ccChecked=[DateTime]::MinValue; $script:ccStatusText='正在检查 CC Switch'; $script:ccTask=$null

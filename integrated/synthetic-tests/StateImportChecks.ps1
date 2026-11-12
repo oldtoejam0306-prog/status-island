@@ -14,6 +14,12 @@ try{
   [IO.File]::WriteAllText($batteryConfig,'local-user-config',[Text.UTF8Encoding]::new($false))
   & $candidateState -Initialize -StateHome $initialized
   Check ((Get-Content -LiteralPath $batteryConfig -Raw)-eq'local-user-config') 'reinitialization preserves existing battery configuration'
+  $desktopConfig=Join-Path $initialized 'desktop-switch-connection.json'
+  $desktopExample=Get-Content -LiteralPath $desktopConfig -Raw|ConvertFrom-Json
+  Check ($desktopExample.schema-eq'sidebar.desktop-switch-connection.v1'-and-not$desktopExample.enabled-and[string]::IsNullOrEmpty($desktopExample.executable)) 'first-run desktop switch config is disabled with an empty executable path'
+  [IO.File]::WriteAllText($desktopConfig,'local-desktop-config',[Text.UTF8Encoding]::new($false))
+  & $candidateState -Initialize -StateHome $initialized
+  Check ((Get-Content -LiteralPath $desktopConfig -Raw)-eq'local-desktop-config') 'reinitialization preserves existing desktop switch configuration'
   $source=Join-Path $root 'source';$target=Join-Path $root 'target';New-Source $source $true
   $monitorSource=Join-Path $source 'aihot-monitor.json';$monitorBytes=([IO.FileInfo]::new($monitorSource)).Length
   Check ($monitorBytes-gt1048576-and$monitorBytes-lt33554432) 'AIHOT fixture exceeds 1 MiB and stays below its 32 MiB limit'
