@@ -26,14 +26,16 @@ The following environment settings configure local integrations.
 | `SIDEBAR_VOICE_HOME` | Optional voice-pack directory. |
 | `AIHOT_ACTOR_ID` | Optional AIHOT request identifier; if absent, the optional identity header is omitted. |
 
-The activity estimate reads only recent modification times. The estimate can return unknown. Balance credential lookup uses an explicit local connection manifest. Weather and lyrics use public service endpoints; AIHOT polling is tied to its local card state. See source adapters for exact request behavior.
+The activity estimate reads only recent modification times. The estimate can return unknown. Balance credential lookup uses an explicit local connection manifest. Weather, lyrics and AIHOT use public service endpoints. The AIHOT inbox stores cached stories, summaries and read/unread history in local `aihot-monitor.json`. Configure `AIHOT_ACTOR_ID` to send its optional identity header.
 
 ## Evidence and limits
 
 - Candidate build, `ValidationRunner.exe` and `LayoutTests.exe` passed on the development machine.
 - The user confirmed music playback, track changes, lyric refresh, the activity estimate, breathing indicator, website timing feedback and the next right-edge expansion theme behavior.
-- Pinky 19 build and targeted UI/locales tests passed. The integrated client is switched to 19; the live panel lease identity matched in the hidden idle state at 360×80, with zero phone actions. The real handoff button callback and detail presentation remain pending after phone testing paused on 2026-11-12.
+- AIHOT compact inbox checks passed with 124 UI assertions, 36 unread-model assertions and 25 app-integration checks. The card stays 360×176 in summary and list modes and exposes three interactive footer actions. The user confirmed the layout, size and three buttons. Multi-display/DPI acceptance remains pending.
+- Pinky 19 build and targeted input tests passed. The user confirmed compact summary expansion, same-width details, an explicit Done click and the matching settled/release receipt. H.264/HEVC initialization and the iPad video preview passed on the development installation.
 - The user confirmed Autoloop details and submission; the backend state/choice reconciled with a resumed fixed confirmation and the snapshot showed zero pending items. The acceptance rule returned a fixed confirmation. Public configuration keeps the remote bridge disabled by default.
-- Normal update handoff evidence covers a limited two-version process-birth/receipt loop. Other upgrade and rollback cases remain pending.
+- Normal update handoff backs up `layout.xml`, `layout.xml.bak`, `pos.json` and `aihot-monitor.json`. The AIHOT limit is 32 MiB and each other state file has a 1 MiB limit. The state import helper has fixtures for hashes, backups, oversized input and partial-failure prevention. Rollback verification covers the parent source pin and four state backups. Executed rollback remains pending.
+- The development installation passed normal same-version menu exit/restart and stable registration. WinPS 5.1 AfterRestart passed six checks for layout, backups, recent city history, position and five runtime configs.
 
-Final stable-release registration awaits the final desktop exit/restart and visual acceptance record.
+Stable registration passed on the development installation after normal same-version exit/restart. Cross-machine and multi-display/DPI behavior remains unverified.

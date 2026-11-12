@@ -5,11 +5,11 @@ namespace IslandIntegrated {
   public const int DefaultColumnWidth=360,Gap=24;
   public static bool Small(Card c){return c.Id=="autoloop"?c.AutoloopMode=="square":c.Id=="weather"?c.WeatherMode=="square":c.Id=="music"?c.MusicMode=="square":(c.Id=="clock"||c.Id=="calendar")&&c.ClockMode!="strip"&&c.SizeMode=="small";}
   public static int SmallWidth(int width){return Math.Max(1,(width-Gap)/2);}
-   public static Dictionary<string,Rectangle> Arrange(IList<Card> list,int width){var result=new Dictionary<string,Rectangle>();int half=SmallWidth(width),y=0;bool pending=false;
+   public static Dictionary<string,Rectangle> Arrange(IList<Card> list,int width,int aihotHeight=AihotLayout.CardHeight){var result=new Dictionary<string,Rectangle>();int half=SmallWidth(width),y=0;bool pending=false;
    foreach(var c in list){if(Small(c)){result[c.Id]=new Rectangle(pending?half+Gap:0,y,half,half);if(pending){y+=half+Gap;pending=false;}else pending=true;}
-    else{if(pending){y+=half+Gap;pending=false;}int h=c.Id=="clock"&&c.SizeMode=="small"&&c.ClockMode=="strip"?120:c.Id=="calendar"||c.Id=="clock"?380:c.Id=="aihot"?176:c.Id=="music"?208:c.Id=="weather"?176:c.Id=="autoloop"?176:132;result[c.Id]=new Rectangle(0,y,width,h);y+=h+Gap;}}
+    else{if(pending){y+=half+Gap;pending=false;}int h=c.Id=="clock"&&c.SizeMode=="small"&&c.ClockMode=="strip"?120:c.Id=="calendar"||c.Id=="clock"?380:c.Id=="aihot"?aihotHeight:c.Id=="music"?208:c.Id=="weather"?176:c.Id=="autoloop"?176:132;result[c.Id]=new Rectangle(0,y,width,h);y+=h+Gap;}}
    return result;}
-  public static int Height(IList<Card> list,int width){var r=Arrange(list,width);return r.Count==0?0:r.Values.Max(v=>v.Bottom)+Gap;}
+  public static int Height(IList<Card> list,int width,int aihotHeight=AihotLayout.CardHeight){var r=Arrange(list,width,aihotHeight);return r.Count==0?0:r.Values.Max(v=>v.Bottom)+Gap;}
  }
   // Compact A/C, long-strip B, and the expanded calendar belong to one persisted
   // time card. Rebuilding restores its month/selection without duplicating cards.

@@ -128,6 +128,7 @@ namespace IslandIntegrated {
     readonly MediaResumePresentation musicPresentation=new MediaResumePresentation();
     readonly AutoloopBridge autoloopBridge=new AutoloopBridge();
     readonly AihotMonitor aihot;
+    bool aihotInboxExpanded;
     readonly PinkySidebarSession pinkySession;
     PinkyPanelLease pinkyPanel = new PinkyPanelLease();
     bool pinkyReading, pinkyDismissed;
@@ -165,6 +166,7 @@ namespace IslandIntegrated {
       }
     }
     int PinkyReservedHeight { get { var size = PinkyPanelSize; return size.IsEmpty ? 0 : size.Height + WidgetGrid.Gap; } }
+    int NotificationReservedHeight { get { return AihotNotificationLayout.ReservedHeight(aihot!=null&&aihot.NotificationOpen,PinkyPanelRequested); } }
     Rectangle PinkyPanelSlot
     {
       get
@@ -255,10 +257,10 @@ namespace IslandIntegrated {
     public int StatusBodyHeight {
       get{return statusBodyHeight;}
       set{
-        int next=Math.Max(0,value);if(next==statusBodyHeight)return;statusBodyHeight=next;
+        int previous=statusBodyHeight;int next=Math.Max(0,value);if(next==previous)return;statusBodyHeight=next;
         // Called on the shared UI thread before the new layered status frame is submitted.
         // Move the existing controls immediately, so the next controller timer cannot lag a frame.
-        if(active!=null&&form.Visible&&!shuttingDown){PrepareInitialLayout(active);var target=AnchoredBounds(active);form.Location=new Point(target.Left+reveal.Offset(form.DeviceDpi),target.Top);}
+        if(active!=null&&!shuttingDown){PrepareInitialLayout(active);var target=AnchoredBounds(active);if(form.Visible)form.Location=new Point(target.Left+reveal.Offset(form.DeviceDpi),target.Top);UpdateColumnExtent();if(next<previous)PositionAihotNotification();form.CommitLayoutFrame();if(next>=previous)PositionAihotNotification();}
       }
     }
     public int MaximumStatusBodyHeight {get{return CornerLayout.MaximumStatusHeight(TargetArea,StatusShadowMargin);}}
@@ -327,6 +329,8 @@ namespace IslandIntegrated {
       Legacy=new LegacySnapshot{Source="local-system",LocalOnly=true,State="starting"};StatusPointer=statusPointer;
       mediaSource=source ?? new NeteaseSource();mediaSource.StateChanged+=OnMediaChanged;
       aihot=new AihotMonitor(Path.GetDirectoryName(file));
+      aihot.NotificationChanged+=OnAihotNotificationChanged;
+      aihot.InboxRequested+=(sender,e)=>OpenAihotInbox();
       pinkySession = new PinkySidebarSession(Path.Combine(Path.GetDirectoryName(file), "pinky-host-connection.json"));
       status=linkedStatus;lyricsSource=LyricsCombinedSource.FromApprovedConfiguration(Path.Combine(Path.GetDirectoryName(file),"lyrics-connection.json"));
       weatherProvider=OpenMeteoWeatherProvider.FromApprovedConfiguration(Path.Combine(Path.GetDirectoryName(file),"weather-connection.json"));path=file; layout=Load(file);localSource.NetworkSnapshotPath=Path.Combine(Path.GetDirectoryName(file),"network-readonly.json");localSource.BalanceSnapshotPath=Path.Combine(Path.GetDirectoryName(file),"balance-readonly.json");localSource.ActivitySnapshotPath=Path.Combine(Path.GetDirectoryName(file),"agent-activity.json");localSource.BalanceConnectionPath=Path.Combine(Path.GetDirectoryName(file),"balance-connection.json");
@@ -379,6 +383,22 @@ namespace IslandIntegrated {
     public bool CancelManagement(){if(!editing)return false;CancelEditing();return true;}
     void SaveEditing(){if(!editing)return;if(dragInput!=null)dragInput.Cancel();try{editSession.Save(path);}catch{MessageBox.Show("\u4FDD\u5B58\u5931\u8D25\uFF0C\u8349\u7A3F\u4ECD\u4FDD\u7559\u3002","\u5C0F\u7EC4\u4EF6");return;}editSession=null;editing=false;state.Pinned=layout.Pinned;Rebuild();RecordPlacement("management-save");}
     int FooterHeight {get{return ManagementBarGeometry.Create(baseColumnWidth,editing).Height;}}
+    int MinimumVisibleCardHeight {get{return CurrentLayout.Cards.Count==0?0:Math.Min(CornerLayout.CompactHeight,CardHeight(CurrentLayout.Cards[0]));}}
+    Screen AihotTargetScreen {get{return active??(status!=null&&status.IsHandleCreated?Screen.FromHandle(status.Handle):Screen.PrimaryScreen);}}
+    bool CanOpenAihotNotification() {
+      if(aihot.NotificationOpen)return true;
+      var screen=AihotTargetScreen;
+      Rectangle column=AnchoredBounds(screen),bounds;
+      return AihotNotificationLayout.TryGetBounds(screen.WorkingArea,column,FooterHeight,PinkyReservedHeight,MinimumVisibleCardHeight,PinkyPanelRequested,out bounds);
+    }
+    void OnAihotNotificationChanged(object sender,EventArgs e) { if(shuttingDown)return;UpdateColumnExtent();form.CommitLayoutFrame();PositionAihotNotification(); }
+    void PositionAihotNotification() {
+      if(aihot==null||!aihot.NotificationOpen)return;
+      var screen=AihotTargetScreen;
+      Rectangle bounds;
+      bool fits=AihotNotificationLayout.TryGetBounds(screen.WorkingArea,AnchoredBounds(screen),FooterHeight,PinkyReservedHeight,MinimumVisibleCardHeight,PinkyPanelRequested,out bounds);
+      if(!fits||!aihot.SetNotificationBounds(bounds))aihot.DeferNotification();
+    }
     void UpdateHeader(){
       title.Visible=false;pin.Visible=false;add.Visible=true;edit.Visible=editing;close.Visible=editing;
       add.Plus=true;add.Text="+";add.AccessibleName=editing?"\u6DFB\u52A0\u5C0F\u7EC4\u4EF6":"\u7BA1\u7406\u5C0F\u7EC4\u4EF6";
@@ -389,16 +409,17 @@ namespace IslandIntegrated {
       add.Bounds=bar.Add;if(editing){edit.Bounds=bar.Save;close.Bounds=bar.Cancel;}
     }
     void UpdateColumnExtent(){
-      int content = WidgetGrid.Height(CurrentLayout.Cards, baseColumnWidth);
+      int content = WidgetGrid.Height(CurrentLayout.Cards, baseColumnWidth,AihotCardHeight);
       int pinkyHeight = PinkyReservedHeight;
-      int reserve = FooterHeight + 8 + pinkyHeight;
+      int notificationHeight = NotificationReservedHeight;
+      int reserve = FooterHeight + 8 + pinkyHeight + notificationHeight;
       cards.Height = editing ? Math.Max(1, columnCapacity - reserve) : Math.Min(Math.Max(1, columnCapacity - reserve), content);
       form.Height = cards.Height + reserve;
       bool overflow = editing || content > cards.Height;
       int scrollWidth = overflow ? SystemInformation.VerticalScrollBarWidth : 0;
       cards.Width = baseColumnWidth + scrollWidth;
       form.Width = Math.Max(cards.Width, PinkyPanelSize.Width + scrollWidth);
-      cards.Location = new Point(form.Width - cards.Width, pinkyHeight);
+      cards.Location = new Point(form.Width - cards.Width, pinkyHeight + notificationHeight);
       UpdateHeader();
     }
     public static Rectangle WorkbenchBounds(Rectangle w) { int gap=Math.Min(32,Math.Max(0,w.Width/8)); int width=Math.Min(390,Math.Max(1,w.Width-gap)); int height=Math.Min(600,w.Height); return new Rectangle(w.Right-gap-width,w.Top+Math.Min(20,Math.Max(0,w.Height-height)),width,height); }
@@ -415,7 +436,7 @@ namespace IslandIntegrated {
       return p.X>=left && p.X<screen.Right && p.Y>=top && p.Y<bottom;
     }
     readonly PlacementKey placement=new PlacementKey();
-    void OnGeometryContextChanged(object sender,EventArgs e){placement.Invalidate();}
+    void OnGeometryContextChanged(object sender,EventArgs e){placement.Invalidate();PositionAihotNotification();}
     Rectangle StatusSurface(){return status==null||StatusHidden?Rectangle.Empty:CornerLayout.Body(TargetArea,StatusBodyHeight,StatusShadowMargin,SystemInformation.VerticalScrollBarWidth);}
     Rectangle AnchoredBounds(Screen screen)
     {
@@ -459,9 +480,8 @@ namespace IslandIntegrated {
       PollLegacy(now);
       RefreshAutoloop();
       RefreshPinkyHost(now);
-      aihot.Tick(layout.Cards.Any(c=>c.Id=="aihot"),!FullscreenBlocked&&!editing&&!modal&&!PinkyPanelRequested);
-      if(form.Visible)RefreshWeather();
       if(active!=null)active=Screen.AllScreens.FirstOrDefault(item=>item.DeviceName==active.DeviceName)??s;
+      if(form.Visible)RefreshWeather();
       bool wasOpen=state.Open;
       bool externalEdge = IsExternalEdge(p,s.Bounds,Screen.AllScreens.Where(other=>other.DeviceName!=s.DeviceName).Select(other=>other.Bounds));
       bool edge=externalEdge && !down && now>=suppressedUntil;
@@ -478,9 +498,12 @@ namespace IslandIntegrated {
       bool actualEdgeActivation=DeferredRandomThemeRequest.IsActualEdgeActivation(edgeWakeRequested,edge,blocked,wasOpen,state.Open,StatusHidden);
       if(actualEdgeActivation){string next=deferredRandomTheme.ConsumeOnEdgeOpen(true,CurrentTheme);themePicker.RandomPending=deferredRandomTheme.Pending;if(next!=null)ApplyTheme(next);}
       if(state.Open&&!wasOpen)active=PinkyPanelRequested && status!=null ? Screen.FromHandle(status.Handle) : s;
+      if(aihot.NotificationOpen)PositionAihotNotification();
       // Status detail is part of the same hover region; it moves cards rather than dismissing them.
       bool show=state.Open&&!blocked;
       PresentReveal(show,active??s,now);
+      if(aihot.NotificationOpen)PositionAihotNotification();
+      aihot.Tick(layout.Cards.Any(c=>c.Id=="aihot"),!FullscreenBlocked&&!editing&&!modal&&!PinkyPanelRequested&&CanOpenAihotNotification());
       timer.Interval=reveal.Moving?15:30;
       if(mediaRefreshPolicy.Due(now,form.Visible,mediaRefreshing,DateTime.UtcNow<mediaFastUntil))RefreshMedia();
       bool enabled=!ReducedMotion&&!blocked&&!modal&&dragging==null&&!editing&&!reveal.Moving;
@@ -652,14 +675,21 @@ namespace IslandIntegrated {
     DragPreview dragPreview;int dragOvers,dragDrops;
     void EndDragPreview(){if(dragPreview!=null){cards.Controls.Remove(dragPreview);dragPreview.Dispose();dragPreview=null;}}
     CardDragInput dragInput;List<Card> dragOriginal;DragInsertionPlan dragPlan;int dragReorders;Point dragGrab,dragPointer;int dragDpi;
-    Dictionary<string,Rectangle> VisualDragPlan(){var p=WidgetGrid.Arrange(CurrentLayout.Cards,baseColumnWidth);var offset=cards.AutoScrollPosition;return p.ToDictionary(x=>x.Key,x=>{var r=x.Value;r.Offset(offset);return r;});}
+    Dictionary<string,Rectangle> VisualDragPlan(){var p=WidgetGrid.Arrange(CurrentLayout.Cards,baseColumnWidth,AihotCardHeight);var offset=cards.AutoScrollPosition;return p.ToDictionary(x=>x.Key,x=>{var r=x.Value;r.Offset(offset);return r;});}
     void BindDrag(Control panel,string id){if(dragInput==null)dragInput=new CardDragInput(BeginCardDrag,MoveCardDrag,FinishCardDrag);dragInput.Bind(panel,id);}
     void BeginCardDrag(string id,Point screen){if(!editing||modal||shuttingDown)throw new InvalidOperationException("Drag requires edit mode");var panel=cards.Controls.Cast<Control>().First(c=>String.Equals(c.Tag as string,id,StringComparison.Ordinal));dragOriginal=new List<Card>(CurrentLayout.Cards);dragging=id;dragOvers=dragDrops=0;dragGrab=panel.PointToClient(screen);dragPlan=new DragInsertionPlan(CurrentLayout.Cards,id,baseColumnWidth,dragGrab);dragReorders=0;dragPointer=cards.PointToClient(screen);lastDragPoint=dragPointer;dragDpi=form.DeviceDpi;StartDragPreview(id);}
-    void MoveCardDrag(Point screen){if(dragging==null)return;if(!editing||form.DeviceDpi!=dragDpi){dragInput.Cancel();return;}dragPointer=cards.PointToClient(screen);if(cards.ClientRectangle.Contains(dragPointer)){int max=Math.Max(0,WidgetGrid.Height(CurrentLayout.Cards,baseColumnWidth)-cards.ClientSize.Height),scroll=-cards.AutoScrollPosition.Y;if(dragPointer.Y<28)scroll=Math.Max(0,scroll-16);else if(dragPointer.Y>cards.ClientSize.Height-28)scroll=Math.Min(max,scroll+16);if(scroll!=-cards.AutoScrollPosition.Y)cards.AutoScrollPosition=new Point(0,scroll);if(Math.Abs(dragPointer.X-lastDragPoint.X)+Math.Abs(dragPointer.Y-lastDragPoint.Y)>=6){lastDragPoint=dragPointer;var offset=cards.AutoScrollPosition;var logical=new Point(dragPointer.X-offset.X,dragPointer.Y-offset.Y);dragOvers++;if(dragPlan!=null&&dragPlan.Update(logical)){dragPlan.Apply(CurrentLayout);dragReorders++;}}}if(dragPreview!=null)dragPreview.Present(VisualDragPlan(),dragPointer);}
+    void MoveCardDrag(Point screen){if(dragging==null)return;if(!editing||form.DeviceDpi!=dragDpi){dragInput.Cancel();return;}dragPointer=cards.PointToClient(screen);if(cards.ClientRectangle.Contains(dragPointer)){int max=Math.Max(0,WidgetGrid.Height(CurrentLayout.Cards,baseColumnWidth,AihotCardHeight)-cards.ClientSize.Height),scroll=-cards.AutoScrollPosition.Y;if(dragPointer.Y<28)scroll=Math.Max(0,scroll-16);else if(dragPointer.Y>cards.ClientSize.Height-28)scroll=Math.Min(max,scroll+16);if(scroll!=-cards.AutoScrollPosition.Y)cards.AutoScrollPosition=new Point(0,scroll);if(Math.Abs(dragPointer.X-lastDragPoint.X)+Math.Abs(dragPointer.Y-lastDragPoint.Y)>=6){lastDragPoint=dragPointer;var offset=cards.AutoScrollPosition;var logical=new Point(dragPointer.X-offset.X,dragPointer.Y-offset.Y);dragOvers++;if(dragPlan!=null&&dragPlan.Update(logical)){dragPlan.Apply(CurrentLayout);dragReorders++;}}}if(dragPreview!=null)dragPreview.Present(VisualDragPlan(),dragPointer);}
     void FinishCardDrag(bool commit){if(dragging==null)return;bool accepted=commit&&cards.ClientRectangle.Contains(dragPointer);string id=dragging;if(!accepted&&dragOriginal!=null)CurrentLayout.Cards=dragOriginal;else dragDrops++;dragOriginal=null;dragging=null;dragPlan=null;var finishing=dragPreview;if(accepted&&finishing!=null&&!ReducedMotion&&!shuttingDown&&!form.IsDisposed){finishing.Settled+=(sender,e)=>{if(ReferenceEquals(dragPreview,finishing)){EndDragPreview();if(!shuttingDown&&!form.IsDisposed)ReflowCards();}};finishing.Release(VisualDragPlan());}else{EndDragPreview();if(!shuttingDown&&!form.IsDisposed)ReflowCards();}string result=new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new{source=id,committedToDraft=accepted,overEvents=dragOvers,reorderChanges=dragReorders,dropEvents=dragDrops,scope="stable insertion geometry and hysteresis; layout persists only on Save"});Task.Run(()=>{try{var folder=Path.Combine(Path.GetDirectoryName(path),"logs");Directory.CreateDirectory(folder);File.WriteAllText(Path.Combine(folder,"drag-gesture-latest.json"),result);}catch{}});}
 
     void StartDragPreview(string id){EndDragPreview();dragPreview=new DragPreview(cards.Controls.Cast<Control>().ToArray(),id){Bounds=cards.ClientRectangle,BackColor=cards.BackColor,ReducedMotion=ReducedMotion};dragPreview.SetGrab(dragging=="fixture"?new Point(60,18):dragGrab);cards.Controls.Add(dragPreview);dragPreview.BringToFront();dragPreview.Present(VisualDragPlan(),dragging=="fixture"?new Point(80,100):dragPointer);}
-    void ReflowCards(){if(dragPreview!=null){dragPreview.Present(VisualDragPlan(),dragging=="fixture"?new Point(80,100):dragPointer);return;}var watch=System.Diagnostics.Stopwatch.StartNew();var plan=WidgetGrid.Arrange(CurrentLayout.Cards,baseColumnWidth);var scroll=cards.AutoScrollPosition;cards.SuspendLayout();foreach(Control item in cards.Controls){Rectangle bounds;if(plan.TryGetValue(item.Tag as string,out bounds)){bounds.Offset(scroll);if(item.Bounds!=bounds)item.Bounds=bounds;}}var extent=new Size(baseColumnWidth,WidgetGrid.Height(CurrentLayout.Cards,baseColumnWidth));if(cards.AutoScrollMinSize!=extent)cards.AutoScrollMinSize=extent;cards.ResumeLayout();if(dragging==null)UpdateColumnExtent();TransitionMetrics.Record("grid-layout",watch.Elapsed.TotalMilliseconds);}
+    int AihotCardHeight {get{return editing?AihotLayout.CardHeight:AihotLayout.InboxHeight(aihot.UnreadCount,aihotInboxExpanded);}}
+    void OpenAihotInbox(){
+      if(shuttingDown||editing||modal)return;
+      aihotInboxExpanded=true;active=AihotTargetScreen;state.Open=true;suppressedUntil=0;Control target=null;
+      foreach(Control panel in cards.Controls)foreach(Control child in panel.Controls){var inbox=child as AihotSidebarControl;if(inbox==null)continue;inbox.ExpandUnread();target=panel;}
+      ReflowCards();PresentReveal(true,active,PreviewClock.NowMs);if(target!=null)cards.ScrollControlIntoView(target);form.CommitLayoutFrame();
+    }
+    void ReflowCards(){if(dragPreview!=null){dragPreview.Present(VisualDragPlan(),dragging=="fixture"?new Point(80,100):dragPointer);return;}var watch=System.Diagnostics.Stopwatch.StartNew();var plan=WidgetGrid.Arrange(CurrentLayout.Cards,baseColumnWidth,AihotCardHeight);var scroll=cards.AutoScrollPosition;cards.SuspendLayout();foreach(Control item in cards.Controls){Rectangle bounds;if(plan.TryGetValue(item.Tag as string,out bounds)){bounds.Offset(scroll);if(item.Bounds!=bounds)item.Bounds=bounds;}}var extent=new Size(baseColumnWidth,WidgetGrid.Height(CurrentLayout.Cards,baseColumnWidth,AihotCardHeight));if(cards.AutoScrollMinSize!=extent)cards.AutoScrollMinSize=extent;cards.ResumeLayout();if(dragging==null)UpdateColumnExtent();TransitionMetrics.Record("grid-layout",watch.Elapsed.TotalMilliseconds);}
     void Rebuild() {
         EndDragPreview();
       Palette.Legacy=CurrentLayout.LegacyPalette;
@@ -691,7 +721,12 @@ namespace IslandIntegrated {
           body.Visible=false;head.Visible=false;var weatherCard=new WeatherCardControl{Square=c.WeatherMode=="square",Editing=editing,Dock=DockStyle.Fill,Enabled=!editing};weatherCard.Present(weatherSnapshot.City==WeatherCity(c)?weatherSnapshot:new WeatherSnapshot{City=WeatherCity(c),State=WeatherSnapshot.ValidCity(WeatherCity(c))?"not-connected":"unconfigured"});weatherCard.ChooseCity+=(sender,e)=>OpenWeatherDetails(c);weatherCard.DetailRequested+=(sender,e)=>OpenWeatherDetails(c);panel.Controls.Add(weatherCard);if(editing)head.BringToFront();
         }
         if(c.Id=="autoloop"){body.Visible=false;head.Visible=false;var autoCard=new AutoloopSidebarControl{Dock=DockStyle.Fill,Enabled=!editing};autoCard.Present(autoloopSnapshot,AutoloopAnswerLocked,autoloopFeedback);autoCard.AnswerRequested+=AnswerAutoloop;autoCard.DetailsRequested+=(sender,args)=>OpenAutoloopDetails();panel.Controls.Add(autoCard);if(editing)head.BringToFront();}
-        if(c.Id=="aihot"){body.Visible=false;head.Visible=false;var hotCard=new AihotSidebarControl(aihot){Dock=DockStyle.Fill,Enabled=!editing};panel.Controls.Add(hotCard);if(editing)head.BringToFront();}
+        if(c.Id=="aihot"){
+          body.Visible=false;head.Visible=false;
+          var hotCard=new AihotSidebarControl(aihot){Dock=DockStyle.Fill,Enabled=!editing,Expanded=aihotInboxExpanded};
+          hotCard.ViewChanged+=(sender,e)=>{if(shuttingDown||editing)return;aihotInboxExpanded=hotCard.Expanded;ReflowCards();form.CommitLayoutFrame();};
+          panel.Controls.Add(hotCard);if(editing)head.BringToFront();
+        }
         if(c.Id=="shortcuts") {
           var action=new GlassActionButton { Text=editing?"选择应用":"打开应用", Location=new Point(14,panel.Height-37), Size=new Size(100,27), FlatStyle=FlatStyle.Flat, ForeColor=Text, BackColor=Color.Transparent };
           action.Enabled=editing || !String.IsNullOrEmpty(c.ShortcutPath);

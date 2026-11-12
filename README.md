@@ -22,14 +22,15 @@ Runtime settings, layout, position and logs are stored under `%LOCALAPPDATA%\Sta
 
 | Area | Current evidence |
 |---|---|
-| Build and synthetic layout/controller checks | Candidate build, validation runner and layout suite pass on the development machine. Installation and cross-machine acceptance remain pending. |
+| Public source build and fixtures | The public package build, AIHOT/unread tests, 25 app-integration checks, layout/controller checks, state migration fixtures and Pinky patch apply/reverse checks passed on the Windows development installation. Cross-machine and mixed-DPI acceptance remains pending. |
+| AIHOT compact inbox | The user confirmed the 360×176 layout, size and three footer buttons. |
 | Music and lyrics | The user confirmed playback, track changes and refresh.  |
 | Activity and visuals | The user confirmed the Codex activity estimate, breathing indicator, website timing feedback and next right-edge expansion theme behavior. Activity uses a recent WAL modification-time estimate. |
 | Autoloop | The user confirmed details and submitted a selection. The backend state and choice reconciled with the resumed fixed confirmation, and the final snapshot showed zero pending items. The acceptance rule returned a fixed confirmation. Public configuration keeps the remote bridge disabled by default. |
-| Pinky 19 | The integrated client is switched to 19. The live panel lease identity matched in its hidden idle state at 360×80, with zero phone actions. Detail presentation and the real handoff-button callback remain pending after phone testing paused on 2026-11-12. |
-| Normal update | A limited two-version process-birth/receipt handoff loop completed. Other upgrade and rollback cases remain pending. |
+| Pinky 19 | The user confirmed compact summary expansion, same-width details, an explicit Done click and the matching settled/release receipt. H.264/HEVC initialization and the iPad video preview passed on the development installation. |
+| Normal update | The development installation passed normal same-version menu exit/restart and stable registration. Six AfterRestart checks passed for layout, backups, city history, position and five runtime configs. Migration fixtures cover the AIHOT 32 MiB cap and other state files' 1 MiB cap. Rollback verification covers the parent source pin and four state backups. Executed rollback remains pending. |
 
-Final stable-release registration also awaits the final desktop exit/restart and visual acceptance record.
+The development installation is registered as desktop accepted. Cross-machine and mixed-DPI acceptance remains pending.
 
 ## Older PowerShell widget
 

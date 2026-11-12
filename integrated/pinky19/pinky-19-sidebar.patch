@@ -1,5 +1,213 @@
+diff --git a/LICENSE b/LICENSE
+new file mode 100644
+index 0000000000000000000000000000000000000000..57bc88a15a0ee8266c259b2667e64608d3f7e292
+--- /dev/null
++++ b/LICENSE
+@@ -0,0 +1,202 @@
++                                 Apache License
++                           Version 2.0, January 2004
++                        http://www.apache.org/licenses/
++
++   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
++
++   1. Definitions.
++
++      "License" shall mean the terms and conditions for use, reproduction,
++      and distribution as defined by Sections 1 through 9 of this document.
++
++      "Licensor" shall mean the copyright owner or entity authorized by
++      the copyright owner that is granting the License.
++
++      "Legal Entity" shall mean the union of the acting entity and all
++      other entities that control, are controlled by, or are under common
++      control with that entity. For the purposes of this definition,
++      "control" means (i) the power, direct or indirect, to cause the
++      direction or management of such entity, whether by contract or
++      otherwise, or (ii) ownership of fifty percent (50%) or more of the
++      outstanding shares, or (iii) beneficial ownership of such entity.
++
++      "You" (or "Your") shall mean an individual or Legal Entity
++      exercising permissions granted by this License.
++
++      "Source" form shall mean the preferred form for making modifications,
++      including but not limited to software source code, documentation
++      source, and configuration files.
++
++      "Object" form shall mean any form resulting from mechanical
++      transformation or translation of a Source form, including but
++      not limited to compiled object code, generated documentation,
++      and conversions to other media types.
++
++      "Work" shall mean the work of authorship, whether in Source or
++      Object form, made available under the License, as indicated by a
++      copyright notice that is included in or attached to the work
++      (an example is provided in the Appendix below).
++
++      "Derivative Works" shall mean any work, whether in Source or Object
++      form, that is based on (or derived from) the Work and for which the
++      editorial revisions, annotations, elaborations, or other modifications
++      represent, as a whole, an original work of authorship. For the purposes
++      of this License, Derivative Works shall not include works that remain
++      separable from, or merely link (or bind by name) to the interfaces of,
++      the Work and Derivative Works thereof.
++
++      "Contribution" shall mean any work of authorship, including
++      the original version of the Work and any modifications or additions
++      to that Work or Derivative Works thereof, that is intentionally
++      submitted to Licensor for inclusion in the Work by the copyright owner
++      or by an individual or Legal Entity authorized to submit on behalf of
++      the copyright owner. For the purposes of this definition, "submitted"
++      means any form of electronic, verbal, or written communication sent
++      to the Licensor or its representatives, including but not limited to
++      communication on electronic mailing lists, source code control systems,
++      and issue tracking systems that are managed by, or on behalf of, the
++      Licensor for the purpose of discussing and improving the Work, but
++      excluding communication that is conspicuously marked or otherwise
++      designated in writing by the copyright owner as "Not a Contribution."
++
++      "Contributor" shall mean Licensor and any individual or Legal Entity
++      on behalf of whom a Contribution has been received by Licensor and
++      subsequently incorporated within the Work.
++
++   2. Grant of Copyright License. Subject to the terms and conditions of
++      this License, each Contributor hereby grants to You a perpetual,
++      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++      copyright license to reproduce, prepare Derivative Works of,
++      publicly display, publicly perform, sublicense, and distribute the
++      Work and such Derivative Works in Source or Object form.
++
++   3. Grant of Patent License. Subject to the terms and conditions of
++      this License, each Contributor hereby grants to You a perpetual,
++      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++      (except as stated in this section) patent license to make, have made,
++      use, offer to sell, sell, import, and otherwise transfer the Work,
++      where such license applies only to those patent claims licensable
++      by such Contributor that are necessarily infringed by their
++      Contribution(s) alone or by combination of their Contribution(s)
++      with the Work to which such Contribution(s) was submitted. If You
++      institute patent litigation against any entity (including a
++      cross-claim or counterclaim in a lawsuit) alleging that the Work
++      or a Contribution incorporated within the Work constitutes direct
++      or contributory patent infringement, then any patent licenses
++      granted to You under this License for that Work shall terminate
++      as of the date such litigation is filed.
++
++   4. Redistribution. You may reproduce and distribute copies of the
++      Work or Derivative Works thereof in any medium, with or without
++      modifications, and in Source or Object form, provided that You
++      meet the following conditions:
++
++      (a) You must give any other recipients of the Work or
++          Derivative Works a copy of this License; and
++
++      (b) You must cause any modified files to carry prominent notices
++          stating that You changed the files; and
++
++      (c) You must retain, in the Source form of any Derivative Works
++          that You distribute, all copyright, patent, trademark, and
++          attribution notices from the Source form of the Work,
++          excluding those notices that do not pertain to any part of
++          the Derivative Works; and
++
++      (d) If the Work includes a "NOTICE" text file as part of its
++          distribution, then any Derivative Works that You distribute must
++          include a readable copy of the attribution notices contained
++          within such NOTICE file, excluding those notices that do not
++          pertain to any part of the Derivative Works, in at least one
++          of the following places: within a NOTICE text file distributed
++          as part of the Derivative Works; within the Source form or
++          documentation, if provided along with the Derivative Works; or,
++          within a display generated by the Derivative Works, if and
++          wherever such third-party notices normally appear. The contents
++          of the NOTICE file are for informational purposes only and
++          do not modify the License. You may add Your own attribution
++          notices within Derivative Works that You distribute, alongside
++          or as an addendum to the NOTICE text from the Work, provided
++          that such additional attribution notices cannot be construed
++          as modifying the License.
++
++      You may add Your own copyright statement to Your modifications and
++      may provide additional or different license terms and conditions
++      for use, reproduction, or distribution of Your modifications, or
++      for any such Derivative Works as a whole, provided Your use,
++      reproduction, and distribution of the Work otherwise complies with
++      the conditions stated in this License.
++
++   5. Submission of Contributions. Unless You explicitly state otherwise,
++      any Contribution intentionally submitted for inclusion in the Work
++      by You to the Licensor shall be under the terms and conditions of
++      this License, without any additional terms or conditions.
++      Notwithstanding the above, nothing herein shall supersede or modify
++      the terms of any separate license agreement you may have executed
++      with Licensor regarding such Contributions.
++
++   6. Trademarks. This License does not grant permission to use the trade
++      names, trademarks, service marks, or product names of the Licensor,
++      except as required for reasonable and customary use in describing the
++      origin of the Work and reproducing the content of the NOTICE file.
++
++   7. Disclaimer of Warranty. Unless required by applicable law or
++      agreed to in writing, Licensor provides the Work (and each
++      Contributor provides its Contributions) on an "AS IS" BASIS,
++      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
++      implied, including, without limitation, any warranties or conditions
++      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
++      PARTICULAR PURPOSE. You are solely responsible for determining the
++      appropriateness of using or redistributing the Work and assume any
++      risks associated with Your exercise of permissions under this License.
++
++   8. Limitation of Liability. In no event and under no legal theory,
++      whether in tort (including negligence), contract, or otherwise,
++      unless required by applicable law (such as deliberate and grossly
++      negligent acts) or agreed to in writing, shall any Contributor be
++      liable to You for damages, including any direct, indirect, special,
++      incidental, or consequential damages of any character arising as a
++      result of this License or out of the use or inability to use the
++      Work (including but not limited to damages for loss of goodwill,
++      work stoppage, computer failure or malfunction, or any and all
++      other commercial damages or losses), even if such Contributor
++      has been advised of the possibility of such damages.
++
++   9. Accepting Warranty or Additional Liability. While redistributing
++      the Work or Derivative Works thereof, You may choose to offer,
++      and charge a fee for, acceptance of support, warranty, indemnity,
++      or other liability obligations and/or rights consistent with this
++      License. However, in accepting such obligations, You may act only
++      on Your own behalf and on Your sole responsibility, not on behalf
++      of any other Contributor, and only if You agree to indemnify,
++      defend, and hold each Contributor harmless for any liability
++      incurred by, or claims asserted against, such Contributor by reason
++      of your accepting any such warranty or additional liability.
++
++   END OF TERMS AND CONDITIONS
++
++   APPENDIX: How to apply the Apache License to your work.
++
++      To apply the Apache License to your work, attach the following
++      boilerplate notice, with the fields enclosed by brackets "[]"
++      replaced with your own identifying information. (Don't include
++      the brackets!)  The text should be enclosed in the appropriate
++      comment syntax for the file format. We also recommend that a
++      file or class name and description of purpose be included on the
++      same "printed page" as the copyright notice for easier
++      identification within third-party archives.
++
++   Copyright [yyyy] [name of copyright owner]
++
++   Licensed under the Apache License, Version 2.0 (the "License");
++   you may not use this file except in compliance with the License.
++   You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++   Unless required by applicable law or agreed to in writing, software
++   distributed under the License is distributed on an "AS IS" BASIS,
++   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++   See the License for the specific language governing permissions and
++   limitations under the License.
++
 diff --git a/cmd/pinky-ui-demo/main.go b/cmd/pinky-ui-demo/main.go
-index 2625d90..c952814 100644
+index 2625d90a61a2c9e0bfa64c2d0c0f939ee800ac1e..c952814fdf17efa55c7af026b9c9497f9b11bc8f 100644
 --- a/cmd/pinky-ui-demo/main.go
 +++ b/cmd/pinky-ui-demo/main.go
 @@ -17,6 +17,7 @@ import (
@@ -29,7 +237,7 @@ index 2625d90..c952814 100644
  		if err := runGateway(*theme, *page, *dev, *hidden, *withVideo, *timeout); err != nil {
  			fmt.Fprintln(os.Stderr, err)
 diff --git a/cmd/pinky/locales/en.json b/cmd/pinky/locales/en.json
-index 7f0d8a1..cb9154f 100644
+index 7f0d8a1a0b1ccf402dc6c60ff5969427e3237b36..cb9154fc1a14d91746e635b444f89065661d6d6a 100644
 --- a/cmd/pinky/locales/en.json
 +++ b/cmd/pinky/locales/en.json
 @@ -5838,6 +5838,18 @@
@@ -52,7 +260,7 @@ index 7f0d8a1..cb9154f 100644
    "@needsDone": {
      "description": "Button on a handoff card: the person did what the agent asked, and the phone goes back to the agent, with the note if there is one."
 diff --git a/cmd/pinky/locales/ja.json b/cmd/pinky/locales/ja.json
-index 0d8136e..8a34c7e 100644
+index 0d8136ea6949a50d3285cd53ba27e86093274f94..8a34c7e69479ac451749d8ef0817f0a183cea851 100644
 --- a/cmd/pinky/locales/ja.json
 +++ b/cmd/pinky/locales/ja.json
 @@ -901,6 +901,9 @@
@@ -66,7 +274,7 @@ index 0d8136e..8a34c7e 100644
    "needsDoneTooltip": "スマホを {agent} に返す",
    "needsFirstConnection": "初回接続",
 diff --git a/cmd/pinky/locales/zh-Hans.json b/cmd/pinky/locales/zh-Hans.json
-index a645e24..aa6d007 100644
+index a645e24399c55b3396aa3318e6cd3094641b2458..aa6d007ada63c712eda18536eab5b47212199ce0 100644
 --- a/cmd/pinky/locales/zh-Hans.json
 +++ b/cmd/pinky/locales/zh-Hans.json
 @@ -901,6 +901,9 @@
@@ -81,7 +289,7 @@ index a645e24..aa6d007 100644
    "needsFirstConnection": "首次连接",
 diff --git a/docs/notes/handoff-ack.md b/docs/notes/handoff-ack.md
 new file mode 100644
-index 0000000..805f504
+index 0000000000000000000000000000000000000000..805f5043a2d22afe982397eade78abacf0cdbb2a
 --- /dev/null
 +++ b/docs/notes/handoff-ack.md
 @@ -0,0 +1,7 @@
@@ -95,7 +303,7 @@ index 0000000..805f504
 \ No newline at end of file
 diff --git a/ui/handoff_ack_test.go b/ui/handoff_ack_test.go
 new file mode 100644
-index 0000000..c287037
+index 0000000000000000000000000000000000000000..c2870374abf605c030e37b884bba18f3453bc549
 --- /dev/null
 +++ b/ui/handoff_ack_test.go
 @@ -0,0 +1,229 @@
@@ -329,7 +537,7 @@ index 0000000..c287037
 +	t.Fatal("late response was not observed")
 +}
 diff --git a/ui/panel.go b/ui/panel.go
-index 3fb9bf2..7aef0a5 100644
+index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..a60736da3d1ae18c666d0466417553ac137bf3af 100644
 --- a/ui/panel.go
 +++ b/ui/panel.go
 @@ -1,7 +1,9 @@
@@ -598,12 +806,28 @@ index 3fb9bf2..7aef0a5 100644
  	if x != nil {
  		card.Children(func() { a.panelAnswered(c, *x) })
  		return
-@@ -255,6 +382,13 @@ func (a *app) panelView(c *mg.Context) {
+@@ -255,6 +382,29 @@ func (a *app) panelView(c *mg.Context) {
  		}
  		mg.Column(c).Grow(1).MinHeight(0).Padding(12, 16, 16, 16).Gap(2).Children(func() {
  			mg.Row(c).MinHeight(24).Gap(8).AlignItems(mg.Center).Children(func() {
-+				if a.panelHostOpaque() && button(c, "", btnOpt{small: true, icon: icChevU, label: locales.TasksDetails()}).
-+					Key("sidebar-collapse-"+n.ID).Width(32).Height(28).Padding(0).Clicked() {
++				collapse := button(c, "", btnOpt{small: true, icon: icChevU, label: locales.TasksDetails()}).
++					Key("sidebar-collapse-" + n.ID).Width(32).Height(28).Padding(0)
++				if a.panelHostOpaque() {
++					w, h := a.panelSize()
++					collapseHitRect := collapse.Bounds()
++					collapse.HandleInput(func(ev mg.InputEvent) bool {
++						if sidebarTraceInput(ev) {
++							a.logSidebarInput("detail-collapse", n, mg.Rect{W: float32(w), H: float32(h)}, collapseHitRect, ev)
++						}
++						return false
++					})
++				}
++				if a.panelHostOpaque() && collapse.Clicked() {
++					if a.opt.Log != nil {
++						a.opt.Log.Info("pinky UI input", "event", "sidebar-detail-collapse", "view", "expanded-detail",
++							"host_opaque", a.panelHostOpaque(), "panel_hosted", a.panelHosted(), "host_dpi", a.panelHostDPI(),
++							"need_id", n.ID, "need_kind", n.Kind)
++					}
 +					a.panelExpandedNeedID = ""
 +				}
 +				if a.sidebarSimulation() {
@@ -612,7 +836,7 @@ index 3fb9bf2..7aef0a5 100644
  				if len(asks) > 1 {
  					mg.Row(c).Gap(2).AlignItems(mg.Center).Role(mg.RoleGroup).Label(locales.PanelWaitingApprovals()).Children(func() {
  						if arrowButton(c, icChevL, locales.PanelPrevious(), a.panelIdx == 0).Clicked() {
-@@ -355,6 +489,147 @@ func (a *app) panelView(c *mg.Context) {
+@@ -355,6 +505,235 @@ func (a *app) panelView(c *mg.Context) {
  	})
  }
  
@@ -623,11 +847,18 @@ index 3fb9bf2..7aef0a5 100644
 +	busy := reply != nil && (reply.pending || reply.completed)
 +	card := mg.Column(c).Key("sidebar-compact-" + n.ID).Fill().Radius(24).Background(mg.Transparent).
 +		BorderWidth(0.75).BorderLinearGradient(sidebarGlassEdge()).Clip()
++	cardHitRect := card.Bounds()
 +	card.Draw(func(pt *mg.Painter, r mg.Rect) { paintSidebarGlass(pt, r, p, 24) })
 +	card.Children(func() {
 +		mg.Row(c).Fill().Padding(8, 12).Gap(10).AlignItems(mg.Center).Children(func() {
 +			summary := mg.ButtonBase(c).Key("sidebar-body-" + n.ID).Label(n.ID + " " + needTitle(n)).
 +				Background(mg.Transparent).Padding(0).Justify(mg.Start).AlignItems(mg.Start).Grow(1).MinWidth(0).MinHeight(0)
++			summaryHitRect := summary.Bounds()
++			summary.ObserveInput(func(ev mg.InputEvent) {
++				if sidebarTraceInput(ev) {
++					a.logSidebarInput("summary", n, cardHitRect, summaryHitRect, ev)
++				}
++			})
 +			summary.Children(func() {
 +				mg.Column(c).Fill().Gap(4).Justify(mg.Center).Children(func() {
 +					mg.Row(c).Gap(7).AlignItems(mg.Center).Children(func() {
@@ -656,31 +887,112 @@ index 3fb9bf2..7aef0a5 100644
 +					mg.Text(c, needTitle(n)).FontSize(16).FontWeight(650).LineHeight(1.25).MaxLines(2).TextColor(p.ink)
 +				})
 +			})
-+			if summary.Clicked() {
-+				a.panelNeedExpanded(n.ID)
-+				a.panelExpandedNeedID = n.ID
-+			}
++			summaryClicked := summary.Clicked()
++			primaryClicked := false
++			direct := true
++			primaryRect := mg.Rect{}
++			primaryPointerX, primaryPointerY := float32(0), float32(0)
++			primaryPointerOver := false
 +			if result == nil {
-+				label, direct := sidebarPrimaryLabel(n), true
++				label := sidebarPrimaryLabel(n)
 +				if reply != nil && reply.pending {
 +					label = locales.NeedsSubmitting()
 +				}
 +				if newAgentNeed(n) {
 +					label, direct = locales.NeedsMoreOptions(), false
 +				}
-+				primary := button(c, label, btnOpt{kind: btnPrimary, small: true, multiline: true}).
-+					Key("sidebar-primary-" + n.ID).Width(76).Height(32).Shrink(0).Disabled(busy)
-+				if primary.Clicked() {
-+					if direct {
-+						a.sidebarPrimary(n)
-+					} else {
-+						a.panelNeedExpanded(n.ID)
-+						a.panelExpandedNeedID = n.ID
++				// Key the button before button() reads its hover/pressed state.
++				primary := button(c.Key("sidebar-primary-"+n.ID), label, btnOpt{kind: btnPrimary, small: true, multiline: true}).
++					Width(76).Height(32).Shrink(0).Disabled(busy)
++				primaryHitRect := primary.Bounds()
++				primary.HandleInput(func(ev mg.InputEvent) bool {
++					if sidebarTraceInput(ev) {
++						a.logSidebarInput("primary", n, cardHitRect, primaryHitRect, ev)
 +					}
++					return false
++				})
++				primaryRect = primary.Bounds()
++				primaryPointerX, primaryPointerY, primaryPointerOver = primary.PointerPosition()
++				primaryClicked = primary.Clicked()
++			}
++			if summaryClicked || primaryClicked {
++				if a.opt.Log != nil {
++					event := "sidebar-notice-pointer"
++					switch {
++					case summaryClicked && primaryClicked:
++						event = "sidebar-summary-primary-same-frame"
++					case summaryClicked:
++						event = "sidebar-summary-expand"
++					case primaryClicked:
++						event = "sidebar-primary-submit"
++					}
++					cardRect := card.Bounds()
++					summaryRect := summary.Bounds()
++					summaryPointerX, summaryPointerY, summaryPointerOver := summary.PointerPosition()
++					a.opt.Log.Info("pinky UI input", "event", event,
++						"need_id", n.ID, "need_kind", n.Kind,
++						"view", "compact-notice", "target_view", map[bool]string{true: "expanded-detail", false: "compact-notice"}[summaryClicked],
++						"host_opaque", a.panelHostOpaque(), "panel_hosted", a.panelHosted(),
++						"summary_clicked", summaryClicked, "primary_clicked", primaryClicked,
++						"card_w", cardRect.W, "card_h", cardRect.H, "host_dpi", a.panelHostDPI(),
++						"summary_x", summaryRect.X-cardRect.X, "summary_y", summaryRect.Y-cardRect.Y,
++						"summary_w", summaryRect.W, "summary_h", summaryRect.H,
++						"summary_pointer_over", summaryPointerOver,
++						"summary_pointer_card_x", summaryRect.X-cardRect.X+summaryPointerX, "summary_pointer_card_y", summaryRect.Y-cardRect.Y+summaryPointerY,
++						"primary_x", primaryRect.X-cardRect.X, "primary_y", primaryRect.Y-cardRect.Y,
++						"primary_w", primaryRect.W, "primary_h", primaryRect.H,
++						"primary_pointer_over", primaryPointerOver,
++						"primary_pointer_card_x", primaryRect.X-cardRect.X+primaryPointerX, "primary_pointer_card_y", primaryRect.Y-cardRect.Y+primaryPointerY)
++				}
++			}
++			if summaryClicked {
++				a.panelNeedExpanded(n.ID)
++				a.panelExpandedNeedID = n.ID
++				// A summary hit owns this frame even if a newly laid-out sibling
++				// reports the same release. Only a separate primary hit may decide.
++				return
++			}
++			if primaryClicked {
++				if direct {
++					a.sidebarPrimary(n)
++				} else {
++					a.panelNeedExpanded(n.ID)
++					a.panelExpandedNeedID = n.ID
 +				}
 +			}
 +		})
 +	})
++}
++
++func sidebarTraceInput(ev mg.InputEvent) bool {
++	switch ev.Kind {
++	case mg.InputPointerDown, mg.InputPointerUp:
++		return ev.Button == 0
++	case mg.InputKeyDown:
++		return ev.Key == mg.KeyEnter || ev.Key == mg.KeySpace
++	default:
++		return false
++	}
++}
++
++func (a *app) logSidebarInput(source string, n gateway.NeedView, card, hit mg.Rect, ev mg.InputEvent) {
++	if a.opt.Log == nil {
++		return
++	}
++	event := "pointer-down"
++	switch ev.Kind {
++	case mg.InputPointerUp:
++		event = "pointer-up"
++	case mg.InputKeyDown:
++		event = "key-down"
++	}
++	a.opt.Log.Info("pinky UI input", "event", "sidebar-"+source+"-"+event,
++		"need_id", n.ID, "need_kind", n.Kind, "input_button", ev.Button, "input_key", ev.Key,
++		"input_pointer", ev.Pointer, "input_canceled", ev.Canceled,
++		"host_opaque", a.panelHostOpaque(), "panel_hosted", a.panelHosted(), "host_dpi", a.panelHostDPI(),
++		"card_w", card.W, "card_h", card.H,
++		"hit_x", hit.X-card.X, "hit_y", hit.Y-card.Y, "hit_w", hit.W, "hit_h", hit.H,
++		"pointer_card_x", hit.X-card.X+ev.X, "pointer_card_y", hit.Y-card.Y+ev.Y)
 +}
 +
 +func panelDeadlineText(n gateway.NeedView) string {
@@ -762,7 +1074,7 @@ index 3fb9bf2..7aef0a5 100644
  func (a *app) panelAnswered(c *mg.Context, x answer) {
 diff --git a/ui/panel_host.go b/ui/panel_host.go
 new file mode 100644
-index 0000000..d322929
+index 0000000000000000000000000000000000000000..d322929a8cb135be9791b03d4acf21918bc0e67d
 --- /dev/null
 +++ b/ui/panel_host.go
 @@ -0,0 +1,338 @@
@@ -1106,10 +1418,10 @@ index 0000000..d322929
 +}
 diff --git a/ui/panel_host_stub.go b/ui/panel_host_stub.go
 new file mode 100644
-index 0000000..7cb775b
+index 0000000000000000000000000000000000000000..7708f493c8aff341f8acdd67a3bb16b2de69b5b3
 --- /dev/null
 +++ b/ui/panel_host_stub.go
-@@ -0,0 +1,14 @@
+@@ -0,0 +1,15 @@
 +//go:build !windows
 +
 +package ui
@@ -1118,6 +1430,7 @@ index 0000000..7cb775b
 +
 +func (a *app) panelHostOpaque() bool        { return false }
 +func (a *app) configureSidebarPanelChrome() {}
++func (a *app) panelHostDPI() int            { return 0 }
 +
 +func (a *app) startPanelHost()                {}
 +func (a *app) stopPanelHost()                 {}
@@ -1126,7 +1439,7 @@ index 0000000..7cb775b
 +func (a *app) syncHostedPanel(want bool) bool { return false }
 diff --git a/ui/panel_host_test.go b/ui/panel_host_test.go
 new file mode 100644
-index 0000000..db1dbe9
+index 0000000000000000000000000000000000000000..db1dbe9814d7a2db6dbed21b465470022f3924fb
 --- /dev/null
 +++ b/ui/panel_host_test.go
 @@ -0,0 +1,195 @@
@@ -1327,10 +1640,10 @@ index 0000000..db1dbe9
 +}
 diff --git a/ui/panel_host_windows.go b/ui/panel_host_windows.go
 new file mode 100644
-index 0000000..b04d8f5
+index 0000000000000000000000000000000000000000..e1c58fab1d96543ea63729c33c57d2da8a1bf98d
 --- /dev/null
 +++ b/ui/panel_host_windows.go
-@@ -0,0 +1,654 @@
+@@ -0,0 +1,661 @@
 +package ui
 +
 +import (
@@ -1480,6 +1793,13 @@ index 0000000..b04d8f5
 +
 +// The floating panel remains a top-level HWND with an optional native owner.
 +func (a *app) panelHostOpaque() bool { return a.panelHost != nil }
++
++func (a *app) panelHostDPI() int {
++	if a.panelHost == nil {
++		return 0
++	}
++	return a.panelHost.lease.spec.DPI
++}
 +
 +// MyGo's Panel flag requests DWM rounding even when CornerRadius is zero.
 +// Only the glass painter should define the hosted panel's 24-DIP silhouette.
@@ -1987,7 +2307,7 @@ index 0000000..b04d8f5
 +}
 diff --git a/ui/panel_host_windows_test.go b/ui/panel_host_windows_test.go
 new file mode 100644
-index 0000000..291d0d8
+index 0000000000000000000000000000000000000000..291d0d8746fc9fcccb95b7471c61c1a6c7f4eb8e
 --- /dev/null
 +++ b/ui/panel_host_windows_test.go
 @@ -0,0 +1,58 @@
@@ -2051,10 +2371,10 @@ index 0000000..291d0d8
 +}
 diff --git a/ui/panel_narrow_test.go b/ui/panel_narrow_test.go
 new file mode 100644
-index 0000000..1bbfe7c
+index 0000000000000000000000000000000000000000..ea78654e66ee7555b787e769d8cb26f3936c0ec3
 --- /dev/null
 +++ b/ui/panel_narrow_test.go
-@@ -0,0 +1,156 @@
+@@ -0,0 +1,296 @@
 +package ui
 +
 +import (
@@ -2159,6 +2479,146 @@ index 0000000..1bbfe7c
 +	}
 +}
 +
++func TestSidebarHandoffSummaryPointerOnlyExpandsAndDoneSubmits(t *testing.T) {
++	newNotice := func() (*testApp, gateway.NeedView, chan sidebarDecisionCall) {
++		ta, n := handoffAckApp(t)
++		delete(ta.noting, n.ID)
++		ta.panelHost = &panelHost{}
++		calls := make(chan sidebarDecisionCall, 2)
++		ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(id string, decision gateway.Decision, _ string) error {
++			calls <- sidebarDecisionCall{id: id, decision: decision}
++			return nil
++		}}
++		return ta, n, calls
++	}
++	point := func(t *testing.T, tt *mg.Tester, label string) (float32, float32, mg.Rect) {
++		t.Helper()
++		r, ok := tt.Find(label)
++		if !ok || r.W <= 0 || r.H <= 0 {
++			t.Fatalf("visible hit target %q not found: %q", label, tt.Texts())
++		}
++		return r.X + r.W/2, r.Y + r.H/2, r
++	}
++
++	t.Run("summary pointer expands without deciding", func(t *testing.T) {
++		ta, n, calls := newNotice()
++		tt := mg.NewTester(ta.panelView, panelHostW, panelHostH)
++		summary := needTitle(n)
++		x, y, summaryRect := point(t, tt, summary)
++		primaryRect, ok := tt.Find(locales.NeedsDone())
++		if !ok {
++			t.Fatalf("explicit Done button missing: %q", tt.Texts())
++		}
++		if summaryRect.X < primaryRect.X+primaryRect.W && primaryRect.X < summaryRect.X+summaryRect.W &&
++			summaryRect.Y < primaryRect.Y+primaryRect.H && primaryRect.Y < summaryRect.Y+summaryRect.H {
++			t.Fatalf("summary and explicit Done hit regions overlap: summary=%+v Done=%+v", summaryRect, primaryRect)
++		}
++		// Use separate pointer input frames to cover the release and compact-to-
++		// detail reflow the native pointer path takes.
++		tt.Press(x, y)
++		tt.Release(x, y)
++		if ta.panelExpandedNeedID != n.ID {
++			t.Fatalf("summary pointer did not open details: expanded=%q rect=%+v", ta.panelExpandedNeedID, summaryRect)
++		}
++		select {
++		case call := <-calls:
++			t.Fatalf("summary pointer submitted Need %q with decision %v", call.id, call.decision)
++		default:
++		}
++		if len(ta.answered) != 0 || len(ta.handoffReplies) != 0 {
++			t.Fatalf("summary pointer changed decision state: answered=%+v replies=%+v", ta.answered, ta.handoffReplies)
++		}
++		_, expandedHeight := ta.panelSize()
++		if expandedHeight <= panelHostH {
++			t.Fatalf("summary pointer did not expand the detail surface: height=%d", expandedHeight)
++		}
++		tt = mg.NewTester(ta.panelView, panelHostW, expandedHeight)
++		collapseX, collapseY, _ := point(t, tt, locales.TasksDetails())
++		tt.Press(collapseX, collapseY)
++		tt.Release(collapseX, collapseY)
++		if ta.panelExpandedNeedID != "" {
++			t.Fatalf("detail-collapse button did not fold to the compact strip: %q", ta.panelExpandedNeedID)
++		}
++		select {
++		case call := <-calls:
++			t.Fatalf("detail-collapse click submitted Need %q with decision %v", call.id, call.decision)
++		default:
++		}
++	})
++
++	t.Run("explicit done button submits once", func(t *testing.T) {
++		ta, n, calls := newNotice()
++		tt := mg.NewTester(ta.panelView, panelHostW, panelHostH)
++		x, y, _ := point(t, tt, locales.NeedsDone())
++		tt.Press(x, y)
++		tt.Release(x, y)
++		select {
++		case call := <-calls:
++			if call.id != n.ID || call.decision != gateway.AllowOnce {
++				t.Fatalf("Done submitted wrong request: %+v", call)
++			}
++		case <-time.After(time.Second):
++			t.Fatal("explicit Done click did not reach the gateway API fixture")
++		}
++		if len(ta.answered) != 0 {
++			t.Fatalf("handoff helper action was incorrectly recorded as an approval: %+v", ta.answered)
++		}
++		select {
++		case call := <-calls:
++			t.Fatalf("one Done click submitted more than once: %+v", call)
++		default:
++		}
++	})
++}
++
++func TestSidebarNewNeedAfterHiddenWindowDoesNotInheritDoneClick(t *testing.T) {
++	ta, first := handoffAckApp(t)
++	delete(ta.noting, first.ID)
++	ta.panelHost = &panelHost{}
++	calls := make(chan sidebarDecisionCall, 2)
++	ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(id string, decision gateway.Decision, _ string) error {
++		calls <- sidebarDecisionCall{id: id, decision: decision}
++		return nil
++	}}
++	tt := mg.NewTester(ta.panelView, panelHostW, panelHostH)
++	doneRect, ok := tt.Find(locales.NeedsDone())
++	if !ok {
++		t.Fatalf("first Need's Done button missing: %q", tt.Texts())
++	}
++	doneX, doneY := doneRect.X+doneRect.W/2, doneRect.Y+doneRect.H/2
++	tt.Press(doneX, doneY)
++	tt.Release(doneX, doneY)
++	select {
++	case call := <-calls:
++		if call.id != first.ID || call.decision != gateway.AllowOnce {
++			t.Fatalf("first Need's explicit Done was changed: %+v", call)
++		}
++	case <-time.After(time.Second):
++		t.Fatal("first Need's explicit Done did not reach the fixture API")
++	}
++	drainHandoffPosts(ta)
++	if len(ta.answered) != 1 || ta.answered[0].need.ID != first.ID {
++		t.Fatalf("first Need did not settle exactly once: %+v", ta.answered)
++	}
++	tt.SetWindowHidden(true)
++	second := first
++	second.ID = "handoff-next-fixture"
++	second.TaskID = "next-task-fixture"
++	second.Created = time.Now().Add(time.Second)
++	second.Deadline = second.Created.Add(time.Minute)
++	ta.setNeeds([]gateway.NeedView{second})
++	tt.SetWindowHidden(false)
++	tt.Frame()
++	select {
++	case call := <-calls:
++		t.Fatalf("new Need was decided without input after hidden/show: %+v", call)
++	default:
++	}
++	if len(ta.answered) != 1 || len(ta.needs) != 1 || ta.needs[0].ID != second.ID || ta.handoffReplies[second.ID] != nil {
++		t.Fatalf("new Need inherited old Done state: answered=%+v needs=%+v replies=%+v", ta.answered, ta.needs, ta.handoffReplies)
++	}
++}
++
 +func TestSidebarNoticeNewNeedResetsExpandedAndPressedAction(t *testing.T) {
 +	first := sidebarNeedTest("need-one", "Pay $12.80?")
 +	second := sidebarNeedTest("need-two", "Delete this draft?")
@@ -2212,7 +2672,7 @@ index 0000000..1bbfe7c
 +	}
 +}
 diff --git a/ui/rightpanel.go b/ui/rightpanel.go
-index 42656aa..8cb5498 100644
+index 42656aa849253ac2914512a7f010b31f75969c07..6b8d3df69e72df15f0eb8e2192e70fccf69cd726 100644
 --- a/ui/rightpanel.go
 +++ b/ui/rightpanel.go
 @@ -173,6 +173,22 @@ func needEyebrow(c *mg.Context, n gateway.NeedView) {
@@ -2238,7 +2698,7 @@ index 42656aa..8cb5498 100644
  	agent := agentOf(n)
  	locked := a.unlocks[n.DeviceID]
  	// The person took over and the agent waits for them to hand back.
-@@ -222,17 +238,17 @@ func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
+@@ -222,17 +238,33 @@ func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
  	declineButton := locked || holding || setup
  	mg.Grid(c).Columns(2).Gap(8).Margin(12, 0, 0, 0).Children(func() {
  		if declineButton {
@@ -2255,11 +2715,27 @@ index 42656aa..8cb5498 100644
  			done = btnOpt{}
  		}
 -		if button(c, locales.NeedsDone(), done).Tooltip(locales.NeedsDoneTooltip(agent)).Clicked() {
-+		if button(c, locales.NeedsDone(), done).Disabled(busy).Tooltip(locales.NeedsDoneTooltip(agent)).Clicked() {
++		doneButton := button(c, locales.NeedsDone(), done).Disabled(busy).Tooltip(locales.NeedsDoneTooltip(agent))
++		if a.panelHostOpaque() {
++			w, h := a.panelSize()
++			doneHitRect := doneButton.Bounds()
++			doneButton.HandleInput(func(ev mg.InputEvent) bool {
++				if sidebarTraceInput(ev) {
++					a.logSidebarInput("detail-done", n, mg.Rect{W: float32(w), H: float32(h)}, doneHitRect, ev)
++				}
++				return false
++			})
++		}
++		if doneButton.Clicked() {
++			if a.opt.Log != nil {
++				a.opt.Log.Info("pinky UI input", "event", "handoff-detail-done", "view", "expanded-detail",
++					"host_opaque", a.panelHostOpaque(), "panel_hosted", a.panelHosted(), "host_dpi", a.panelHostDPI(),
++					"need_id", n.ID, "need_kind", n.Kind)
++			}
  			a.decide(n, gateway.AllowOnce, note)
  		}
  	})
-@@ -240,7 +256,7 @@ func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
+@@ -240,7 +272,7 @@ func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
  		if !noting && linkButton(c, locales.NeedsAddNote()).Clicked() {
  			a.noting[n.ID] = true
  		}
@@ -2269,7 +2745,7 @@ index 42656aa..8cb5498 100644
  		}
  	})
 diff --git a/ui/run.go b/ui/run.go
-index 8d9fcb5..a6f9cbd 100644
+index 8d9fcb5dee9971b2bff110567a24e235be7e0454..a6f9cbd027f665f68eab90139db47e3cff3c3652 100644
 --- a/ui/run.go
 +++ b/ui/run.go
 @@ -249,10 +249,11 @@ type app struct {
@@ -2452,17 +2928,22 @@ index 8d9fcb5..a6f9cbd 100644
 diff --git a/ui/sidebar_appearance_other.go b/ui/sidebar_appearance_other.go
 new file mode 100644
 index 0000000000000000000000000000000000000000..beb6ae8c75d52d47ef3f2aaf757cfdf6a70c76c1
-GIT binary patch
-literal 147
-zcmV~$u?oUK3;@u%0skR(YN6Og9NZl0=;A02*Iq2anjE<tRm6Yyy}qCII2K+aZdaD5
-zYu>;HQkb4$CM*oVucYSKKviq5p#^vpnb0W2D@PiGol>G;K_)u$LQQsKnLA|h!@kAl
-hb{{`Z9g>+^i(jaWyqKWy(xK+vV0KX--kcqN@CTkYFbx0z
-
-literal 0
-HcmV?d00001
-
+--- /dev/null
++++ b/ui/sidebar_appearance_other.go
+@@ -0,0 +1,11 @@
++//go:build !windows
++
++package ui
++
++import (
++	"os"
++)
++
++func readSidebarAppearanceFile(string, int64) ([]byte, error) {
++	return nil, os.ErrNotExist
++}
 diff --git a/ui/style.go b/ui/style.go
-index 9e5bc52..40398ed 100644
+index 9e5bc527b9df8cb9c0610845d3cfd4f823439810..40398edd37439a7103aced57890c1b0234e7e3b0 100644
 --- a/ui/style.go
 +++ b/ui/style.go
 @@ -1,6 +1,12 @@

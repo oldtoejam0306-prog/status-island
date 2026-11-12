@@ -229,6 +229,7 @@ namespace IslandIntegrated {
       finally{presenting=false;}
     }
     void OnTick(object sender,EventArgs e){PresentFrame(false);}
+    public void CommitLayoutFrame(){PresentFrame(true);}
     public Bitmap CaptureFrame(){EnsureFrame(true);return frame==null?new Bitmap(1,1):(Bitmap)frame.Clone();}
     public Bitmap RenderFrameForEvidence(){return CaptureFrame();}
     protected override void OnPaintBackground(PaintEventArgs e){if(!TopLevel){PerPixelLayered=false;base.OnPaintBackground(e);}}

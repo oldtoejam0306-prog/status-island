@@ -15,16 +15,20 @@ git apply path\to\pinky-19-sidebar.patch
 go tool mygo generate cmd/pinky
 $env:GOTOOLCHAIN = 'local'
 $env:CGO_ENABLED = '0'
-go build -tags=mygo_noinspector -ldflags="-H=windowsgui -X main.version=2026.1111.19+sidebar.20261111.1" -o PinkySidebar.exe ./cmd/pinky
+go build -tags=mygo_noinspector -ldflags="-H=windowsgui -X main.version=2026.1111.19+sidebar.summary-hitfix.20261112.6" -o PinkySidebar.exe ./cmd/pinky
 ```
 
 Use Go 1.27.3. The host integration receives `PINKY_PANEL_HOST_DIR` from the local Status Island configuration. Keep `PINKY_HOME`, host lease files, and build outputs in a local isolated directory; do not commit them. The sidebar holds the overlay window identity and DPI/rectangle lease checks; Pinky retains the gateway approval API as the decision authority.
 
+Pinky preview and recording use FFmpeg 9.0.2. Place `avcodec-63.dll`, `avformat-63.dll`, `avutil-61.dll` and `swscale-10.dll` beside the Pinky executable. Obtain them from the matching upstream Windows package or build them with `scripts/ffmpeg.sh`. Keep the matching build and LGPL license notices with the runtime. The config-driven startup uses `sidebar.pinky-start.v1` and empty example values.
+
 ## Evidence and limits
 
-The adapted 19 source passed `go build -tags=mygo_noinspector ./...`, `go vet -tags=mygo_noinspector ./...`, and `go test -tags=mygo_noinspector ./ui ./cmd/pinky/locales`. A current desktop run attached the panel in the hidden idle state at 360×80 with a matching lease identity and zero phone actions. Detail presentation and the real handoff-button callback remain pending; phone testing paused on 2026-11-12.
+The base Pinky 19 adaptation passed `go build -tags=mygo_noinspector ./...`, `go vet -tags=mygo_noinspector ./...`, and `go test -tags=mygo_noinspector ./ui ./cmd/pinky/locales`. The final Need-specific input fix passed targeted pointer/hidden-window regressions, `go vet ./ui` and a `./cmd/pinky` build. The exported patch passed apply and reverse checks.
 
-The patch package contains source changes, documentation and the upstream license. Full phone approval/handoff acceptance remains pending until the detail view and real callback are reviewed.
+The user confirmed compact summary expansion, same-width details, an explicit Done click and the matching settled/release receipt. The development installation also passed H.264/HEVC initialization, iPad video preview, normal same-version sidebar exit/restart and stable registration. Six AfterRestart checks passed for layout, backups, city history, position and five runtime configs. Cross-machine and mixed-DPI acceptance remains pending.
+
+The patch package contains source changes, documentation and the upstream license. Rollback verification covers the parent source pin and four state backups. Executed rollback remains pending.
 
 ## License
 
