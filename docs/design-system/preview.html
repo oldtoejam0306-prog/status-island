@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Status Island · 设计系统 v3</title>
+<style>
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --s12: 12px; --s14: 14px; --s16: 16px; --s20: 20px; --display: 32px; --display-wide: 40px;
+  --space: 24px; --section: 32px; --radius: 24px;
+  --sheet: #0b0f14; --sheet-ink: #edf4f9; --sheet-secondary: #a9bccb;
+  --ink: #eef5f7; --secondary: #c3d3df;
+  --good: #67cfa5; --warning: #d9b45f; --danger: #e0808a;
+}
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+body { margin: 0; background: var(--sheet); color: var(--sheet-ink); font: 400 var(--s14)/24px var(--font); }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { font: inherit; color: inherit; cursor: pointer; }
+a { color: inherit; }
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid #8fc3e8; outline-offset: 4px; }
+h1, h2, h3, p { margin: 0; }
+h1 { font-size: var(--s20); line-height: 32px; font-weight: 650; }
+h2 { font-size: var(--s20); line-height: 32px; font-weight: 650; }
+h3 { font-size: var(--s16); line-height: 24px; font-weight: 650; }
+svg { flex-shrink: 0; overflow: visible; }
+.icon { width: 20px; height: 20px; display: inline-block; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+.icon.s { width: 16px; height: 16px; }
+.icon.xs { width: 12px; height: 12px; }
+.icon.m { width: 24px; height: 24px; }
+.symbols { position: absolute; width: 0; height: 0; overflow: hidden; }
+.board { width: 1856px; margin: 0 auto; padding: 32px; }
+.board-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 32px; padding-bottom: 24px; }
+.board-head p { color: var(--sheet-secondary); font-size: var(--s14); line-height: 24px; }
+.board-note { color: #93a8b8; font-size: var(--s12); line-height: 24px; text-align: right; white-space: nowrap; }
+.sheet-nav { display: flex; gap: 24px; padding-bottom: 24px; }
+.sheet-nav a { text-decoration: none; border: 1px solid #33424f; border-radius: 24px; height: 40px; display: inline-flex; align-items: center; padding: 0 24px; font-size: var(--s14); color: #cfdee9; }
+section[data-board] { display: none; }
+section[data-board].active { display: block; }
+body.export .sheet-nav { display: none; }
+
+/* overview */
+.overview-grid { display: grid; grid-template-columns: repeat(4, 408px); gap: 32px; justify-content: center; }
+.theme-col { width: 408px; }
+.theme-head { height: 56px; display: flex; align-items: flex-start; justify-content: space-between; }
+.theme-head h2 { font-size: var(--s20); }
+.theme-head p { color: var(--sheet-secondary); font-size: var(--s12); line-height: 24px; }
+.stage { width: 408px; height: auto; position: relative; padding: 24px; display: flex; flex-direction: column; gap: 24px; background-color: #10161d; background-size: 408px 1440px; background-repeat: no-repeat; background-position: 0 0; }
+.stack { display: grid; gap: 24px; width: 360px; }
+.glass-card { position: relative; isolation: isolate; overflow: hidden; border-radius: 24px; background: rgba(var(--panel-rgb, 14,43,66), .42); -webkit-backdrop-filter: blur(18px) saturate(1.15); backdrop-filter: blur(18px) saturate(1.15); box-shadow: 0 12px 24px rgba(0,4,10,.28), inset 0 1px 0 rgba(233,247,255,.10), inset 0 0 0 1px rgba(218,240,252,.08); }
+.glass-card > :not(.optic-canvas, .state-tint, .cover-glass, .cover-shade, .clock-ticks) { position: relative; z-index: 1; }
+.case-solid .glass-card { background: rgba(var(--panel-rgb, 14,43,66), .85); }
+.state-tint { position: absolute; inset: 0; border-radius: 24px; z-index: 0; pointer-events: none; opacity: .42; }
+.tile .state-tint { z-index: 0; }
+.tile > *:not(.state-tint, .clock-ticks) { position: relative; z-index: 1; }
+.music-card { --panel-rgb: 24,27,32; background: linear-gradient(180deg, rgba(10,12,16,.58), rgba(8,10,13,.72)); }
+.cover-glass { position: absolute; inset: -24px; z-index: 0; background-size: cover; background-position: center; filter: blur(26px) saturate(1.0) brightness(.5); }
+.cover-shade { position: absolute; inset: 0; z-index: 0; border-radius: 24px; background: rgba(8,10,14,.55); }
+.music-card > :not(.cover-glass, .cover-shade, .optic-canvas, .state-tint) { position: relative; z-index: 1; }
+
+/* compact / island */
+.compact { width: 360px; height: 80px; padding: 0 24px 0 36px; display: grid; align-content: center; grid-template-rows: 24px 24px; position: relative; }
+.netbar { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 4px; height: 48px; border-radius: 4px; background: var(--good); }
+.netbar.degraded { background: var(--warning); animation: barBreathe 4s ease-in-out infinite; }
+.netbar.offline { background: var(--danger); animation: barBreathe 6s ease-in-out infinite; }
+.compact-row1 { display: flex; align-items: center; justify-content: space-between; font-size: var(--s14); }
+.compact-gpu { display: flex; align-items: center; gap: 0; }
+.compact-gpu .icon { width: 24px; color: var(--secondary); }
+.compact-gpu strong { font-weight: 600; }
+.compact-vram { color: var(--secondary); font-size: var(--s12); }
+.compact-actions { display: flex; align-items: center; gap: 24px; color: var(--secondary); }
+.compact-row2 { display: flex; align-items: center; justify-content: space-between; font-size: var(--s12); }
+.compact-agents { display: flex; gap: 24px; }
+.compact-agent { display: flex; align-items: center; gap: 0; white-space: nowrap; }
+.compact-agent .brand-logo { width: 16px; height: 16px; }
+.compact-agent span.state { color: var(--secondary); }
+.led { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+.led.hollow { background: transparent; box-shadow: inset 0 0 0 1.5px var(--secondary); }
+.led.off { background: var(--danger); opacity: .8; }
+.led.breathe { animation: ledBreathe 2.4s ease-in-out infinite; }
+.dot-inline { width: 6px; height: 6px; margin: 0 8px; }
+@keyframes ledBreathe { 0%,100% { opacity: .42; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.08); } }
+@keyframes barBreathe { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
+@keyframes spinBreathe { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(220,240,252,.35); border-top-color: var(--tint, #a9d7eb); animation: ledBreathe 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .led.breathe, .netbar.degraded, .netbar.offline, .spinner { animation: none; } }
+
+/* icons */
+.brand-logo { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linejoin: round; stroke-linecap: round; }
+.codex-brand { color: var(--good); }
+.claude-brand { color: #e8b090; }
+.icon-btn { width: 24px; height: 24px; padding: 0; border: 0; background: transparent; display: inline-grid; place-items: center; color: var(--secondary); border-radius: 24px; position: relative; }
+.icon-btn:hover { color: var(--ink); background: rgba(230,244,255,.10); }
+.icon-btn.busy .spinner { width: 14px; height: 14px; }
+.icon-btn[disabled] { opacity: .38; }
+.icon-btn .tip { display: none; position: absolute; bottom: calc(100% + 8px); right: 0; white-space: nowrap; background: var(--ink); color: #10202c; font-size: 12px; line-height: 24px; padding: 0 16px; border-radius: 24px; z-index: 30; }
+.icon-btn:hover .tip, .icon-btn:focus-visible .tip { display: block; }
+
+/* sidebar cards */
+.sidebar { width: 360px; display: grid; gap: 24px; }
+.panel { padding: 24px; color: var(--ink); }
+.system-card { height: 432px; display: grid; gap: 24px; }
+.panel-head { height: 24px; display: flex; align-items: center; justify-content: space-between; }
+.head-brand { display: flex; align-items: center; }
+.head-brand > .icon { width: 24px; color: var(--tint); }
+.head-actions { display: flex; align-items: center; gap: 24px; }
+.metrics { height: 128px; }
+.metric { height: 32px; position: relative; }
+.metric-line { height: 24px; display: flex; align-items: center; justify-content: space-between; font-size: var(--s14); }
+.metric-label { display: inline-flex; align-items: center; }
+.metric-label .tag { display: inline-flex; align-items: center; gap: 0; color: var(--secondary); font-size: var(--s12); }
+.metric-label .tag .icon { width: 20px; color: var(--danger); }
+.metric-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.metric-value .secondary { font-size: var(--s12); font-weight: 400; color: var(--secondary); }
+.meter { height: 4px; border-radius: 24px; background: var(--track); overflow: hidden; }
+.meter-fill { height: 4px; border-radius: 0 4px 4px 0; background: var(--accent); }
+.metric.danger .meter { background: rgba(224,128,138,.2); }
+.metric.danger .meter-fill { background: var(--danger); }
+.metric.warning .meter { background: rgba(217,180,95,.2); }
+.metric.warning .meter-fill { background: var(--warning); }
+.agents { height: 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.agent { height: 64px; border: 0; border-radius: 24px; padding: 0; text-align: left; display: grid; grid-template-columns: 48px 1fr; align-items: center; background: rgba(3,12,21,.24); box-shadow: inset 0 1px 0 rgba(218,238,250,.10), inset 0 0 0 1px rgba(207,230,242,.06); }
+.agent-brand { display: grid; place-items: center; }
+.agent-name { font-size: var(--s14); font-weight: 650; line-height: 24px; }
+.agent-state { display: flex; align-items: center; font-size: var(--s12); line-height: 20px; color: var(--secondary); }
+.agent-state .led { margin-right: 8px; }
+.services { height: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.service-title { color: var(--secondary); font-size: var(--s12); line-height: 20px; }
+.service-value { height: 20px; display: flex; align-items: center; font-size: var(--s14); font-weight: 600; }
+.service-value .suffix { color: var(--secondary); font-size: var(--s12); font-weight: 400; }
+.service-value .icon { margin-left: auto; width: 16px; color: var(--secondary); }
+.voice-row { height: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.voice { height: 32px; border: 0; border-radius: 24px; padding: 0; display: grid; grid-template-columns: 32px 1fr 24px; align-items: center; text-align: left; background: rgba(3,12,21,.22); box-shadow: inset 0 1px 0 rgba(218,238,250,.08); font-size: var(--s12); color: var(--secondary); }
+.voice .icon:first-child { justify-self: center; }
+.voice .icon:last-child { width: 12px; height: 12px; }
+
+/* music */
+.music-card { height: 224px; display: grid; gap: 24px; }
+.track-info { height: 64px; display: grid; grid-template-columns: 64px 1fr; gap: 24px; align-items: center; }
+.album { width: 64px; height: 64px; border-radius: 24px; object-fit: cover; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+.song-title { font-size: var(--s16); font-weight: 650; line-height: 24px; }
+.artist { font-size: var(--s14); color: var(--secondary); line-height: 20px; }
+.lyrics-note { font-size: var(--s12); color: var(--secondary); line-height: 20px; }
+.scrubber { height: 24px; }
+.track { display: block; width: 100%; height: 4px; border-radius: 24px; background: rgba(194,221,237,.18); overflow: hidden; }
+.track-fill { display: block; width: 67.4%; height: 4px; border-radius: 0 4px 4px 0; background: #cfd8dd; }
+.track-times { display: flex; justify-content: space-between; font-size: var(--s12); line-height: 20px; color: var(--secondary); }
+.playback { height: 40px; display: flex; justify-content: center; align-items: center; gap: 24px; }
+.transport { width: 40px; height: 40px; border: 0; border-radius: 24px; background: transparent; display: grid; place-items: center; color: var(--secondary); }
+.transport.play { background: #cfd8dd; color: #1b2b34; box-shadow: inset 0 1px 0 rgba(255,255,255,.6); }
+.transport .icon { width: 20px; height: 20px; fill: currentColor; stroke-width: 1; }
+
+/* duo: weather + clock */
+.duo { height: 160px; display: grid; grid-template-columns: 168px 168px; gap: 24px; }
+.tile { height: 160px; padding: 24px; color: var(--ink); position: relative; isolation: isolate; overflow: hidden; border-radius: 24px; }
+.tile > * { position: relative; z-index: 1; }
+.weather-city { font-size: var(--s14); font-weight: 600; line-height: 24px; }
+.weather-main { height: 40px; display: flex; align-items: center; justify-content: space-between; }
+.weather-temp { font-size: var(--display); line-height: 40px; font-weight: 650; }
+.weather-glyph { width: 48px; height: 40px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+.weather-line { font-size: var(--s12); color: var(--secondary); line-height: 24px; white-space: nowrap; }
+.clock { display: flex; flex-direction: column; justify-content: space-between; }
+.clock-time { font-size: var(--display); line-height: 40px; font-weight: 650; letter-spacing: .5px; }
+.clock-sub { font-size: var(--s12); color: var(--secondary); line-height: 24px; }
+.clock-date { margin-top: 24px; }
+.clock-ticks { position: absolute; right: 16px; bottom: 16px; width: 56px; height: 56px; opacity: .65; z-index: 0; }
+.clock-ticks .tick { stroke: var(--secondary); stroke-width: 1; }
+.clock-ticks .hand { stroke: var(--ink); stroke-linecap: round; }
+
+/* autoloop */
+.autoloop { height: 120px; display: grid; gap: 24px; }
+.autoloop.running { height: 232px; }
+.autoloop .panel-head { height: 24px; }
+.autoloop-title { display: flex; align-items: center; }
+.autoloop-title .icon { width: 24px; color: var(--secondary); }
+.autoloop-state { display: inline-flex; align-items: center; color: var(--secondary); font-size: var(--s12); }
+.autoloop-state .led { margin-right: 8px; }
+.autoloop-empty { height: 24px; display: flex; align-items: center; justify-content: space-between; }
+.autoloop-empty p { color: var(--secondary); font-size: var(--s14); line-height: 24px; }
+.text-link { border: 0; background: transparent; padding: 0; font-size: var(--s12); line-height: 24px; display: inline-flex; align-items: center; }
+.task-list { display: grid; gap: 24px; }
+.task { height: 32px; display: flex; align-items: center; justify-content: space-between; font-size: var(--s14); }
+.task-name { display: inline-flex; align-items: center; }
+.task-name .led { margin-right: 8px; }
+.task-time { color: var(--secondary); font-size: var(--s12); }
+.task-actions { display: flex; justify-content: space-between; }
+.add-widget { justify-self: center; width: 160px; height: 40px; border: 0; border-radius: 24px; background: rgba(255,255,255,.06); box-shadow: inset 0 0 0 1px rgba(207,230,242,.12); display: flex; align-items: center; justify-content: center; gap: 16px; font-size: var(--s12); }
+
+/* boards: statusbar */
+.state-row { display: grid; grid-template-columns: repeat(3, 408px); gap: 32px; justify-content: center; margin-bottom: 24px; }
+.state-cell { width: 408px; }
+.state-cell .stage { height: 80px; }
+.state-label { font-size: var(--s12); color: var(--sheet-secondary); line-height: 24px; display: flex; justify-content: space-between; }
+.legend-grid { display: grid; grid-template-columns: repeat(4, 408px); gap: 32px; justify-content: center; margin-bottom: 24px; }
+.legend-tile { width: 408px; height: 96px; border-radius: 24px; background: #101820; box-shadow: inset 0 0 0 1px rgba(207,230,242,.10); display: flex; align-items: center; gap: 24px; padding: 24px; }
+.legend-tile .sample { width: 72px; display: grid; place-items: center; }
+.legend-tile .sample .led { width: 24px; height: 24px; }
+.legend-tile .sample .netbar-demo { width: 4px; height: 48px; border-radius: 4px; background: var(--good); }
+.legend-tile .sample .netbar-demo.degraded { background: var(--warning); animation: barBreathe 4s ease-in-out infinite; }
+.legend-tile .sample .netbar-demo.offline { background: var(--danger); animation: barBreathe 6s ease-in-out infinite; }
+.legend-tile h3 { font-size: var(--s14); }
+.legend-tile p { font-size: var(--s12); color: var(--sheet-secondary); line-height: 24px; }
+.action-tiles { display: grid; grid-template-columns: repeat(4, 408px); gap: 32px; justify-content: center; }
+.action-tile { width: 408px; height: 120px; border-radius: 24px; background: #101820; box-shadow: inset 0 0 0 1px rgba(207,230,242,.10); padding: 24px; display: flex; gap: 24px; align-items: center; }
+.action-tile .icon-btn { width: 40px; height: 40px; border-radius: 24px; background: rgba(230,244,255,.08); }
+.action-tile p { font-size: var(--s12); color: var(--sheet-secondary); line-height: 24px; }
+.action-tile h3 { font-size: var(--s14); }
+
+/* theme switch board */
+.switch-layout { display: grid; grid-template-columns: 408px 1fr; gap: 32px; justify-content: center; }
+.switch-stage { width: 408px; height: 640px; padding: 24px; border-radius: 0; }
+.demo-card { width: 360px; color: var(--ink); padding: 24px; display: grid; gap: 24px; background: #16222c; box-shadow: inset 0 0 0 1px rgba(207,230,242,.10), 0 12px 24px rgba(0,4,10,.28); position: relative; }
+.demo-head { display: flex; align-items: center; justify-content: space-between; height: 24px; }
+.menu-anchor { position: relative; }
+.theme-menu { position: absolute; top: calc(100% + 16px); right: 0; width: 216px; padding: 24px; display: grid; gap: 24px; border-radius: 24px; background: #18242e; box-shadow: 0 16px 32px rgba(0,0,0,.4), inset 0 0 0 1px rgba(220,240,252,.12); z-index: 40; color: var(--ink); }
+.theme-menu h4 { margin: 0; font-size: var(--s12); line-height: 24px; color: var(--secondary); font-weight: 400; }
+.theme-option { width: 100%; border: 0; background: transparent; display: flex; align-items: center; justify-content: space-between; height: 32px; font-size: var(--s14); padding: 0; border-radius: 24px; }
+.theme-option .left { display: flex; align-items: center; gap: 16px; }
+.theme-option .swatch { width: 12px; height: 12px; border-radius: 50%; }
+.theme-option .icon { width: 16px; height: 16px; color: var(--tint); }
+.theme-option[aria-checked="true"] { font-weight: 600; }
+.spec-list { display: grid; gap: 24px; align-content: start; }
+.spec-item { border-radius: 24px; background: #101820; box-shadow: inset 0 0 0 1px rgba(207,230,242,.09); padding: 24px; }
+.spec-item h3 { font-size: var(--s14); }
+.spec-item p { font-size: var(--s12); color: var(--sheet-secondary); line-height: 24px; }
+
+/* weather board */
+.weather-grid { display: grid; grid-template-columns: repeat(3, 360px); gap: 32px; justify-content: center; }
+.weather-demo { width: 360px; height: 200px; padding: 24px; color: var(--ink); position: relative; isolation: isolate; overflow: hidden; border-radius: 24px; background: linear-gradient(160deg, rgba(14,43,66,.92), rgba(12,29,44,.92)); box-shadow: inset 0 0 0 1px rgba(207,230,242,.10), inset 0 1px 0 rgba(233,247,255,.10); }
+.weather-demo .state-tint { opacity: .5; }
+.weather-demo .weather-temp { font-size: var(--display); line-height: 40px; }
+.weather-demo .weather-glyph { width: 64px; height: 48px; }
+.weather-demo .weather-main { height: 48px; }
+.weather-demo .weather-city { font-size: var(--s16); }
+.weather-demo .weather-state { font-size: var(--s14); }
+.weather-meta { display: grid; gap: 0; margin-top: 8px; }
+.weather-meta .weather-line { line-height: 20px; }
+.w-label { font-size: var(--s12); color: var(--sheet-secondary); line-height: 24px; display: flex; justify-content: space-between; }
+.w-anatomy { padding-top: 24px; display: grid; grid-template-columns: repeat(3, 360px); gap: 32px; justify-content: center; }
+.w-anatomy p { font-size: var(--s12); color: var(--sheet-secondary); line-height: 24px; }
+
+/* clock board */
+.clock-grid { display: grid; grid-template-columns: repeat(3, 408px); gap: 32px; justify-content: center; align-items: start; }
+.clock-cell { width: 408px; }
+.clock-cell .label { display: flex; justify-content: space-between; font-size: var(--s12); color: var(--sheet-secondary); line-height: 24px; margin-bottom: 24px; }
+.tile.wide { width: 408px; height: 120px; display: flex; flex-direction: column; justify-content: center; gap: 0; }
+.wide-clock-time { font-size: var(--display-wide); line-height: 48px; font-weight: 650; letter-spacing: 1px; }
+.wide-clock-row { display: flex; align-items: baseline; justify-content: space-between; }
+.wide-clock-sub { font-size: var(--s14); color: var(--secondary); }
+.badge { font-size: var(--s12); color: var(--secondary); line-height: 24px; border-radius: 24px; padding: 0 16px; box-shadow: inset 0 0 0 1px rgba(207,230,242,.14); display: inline-flex; align-items: center; }
+
+/* autoloop board */
+.autoloop-grid { display: grid; grid-template-columns: repeat(3, 408px); gap: 32px; justify-content: center; align-items: start; }
+.auto-cell { width: 408px; }
+.auto-cell .stage { height: auto; min-height: 0; padding: 24px; }
+.auto-cell .label { display: flex; justify-content: space-between; font-size: var(--s12); color: var(--sheet-secondary); line-height: 24px; margin-bottom: 24px; }
+
+.board-footnote { padding-top: 24px; font-size: var(--s12); color: #93a8b8; line-height: 24px; }
+
+@media (forced-colors: active) { .glass-card, .tile, .weather-demo, .spec-item, .legend-tile, .action-tile { outline: 1px solid CanvasText; } }
+</style>
+</head>
+<body>
+<svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="3"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 3v3m6-3v3M9 18v3m6-3v3M3 9h3m-3 6h3m12-6h3m-3 6h3"/></symbol>
+<symbol id="chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></symbol>
+<symbol id="alert" viewBox="0 0 24 24"><path d="m12 4 9 16H3L12 4Z"/><path d="M12 9v4m0 3v.1"/></symbol>
+<symbol id="activity" viewBox="0 0 24 24"><path d="M5 15V9m5 10V5m5 11V8m5 6v-4"/></symbol>
+<symbol id="refresh" viewBox="0 0 24 24"><path d="M19 10a7 7 0 1 0-.6 6M19 4v6h-6"/></symbol>
+<symbol id="speaker" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Zm4 3c3 2 3 6 0 8m3-11c5 4 5 10 0 14"/></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+<symbol id="previous" viewBox="0 0 24 24"><path d="M6 5v14m12-14L8 12l10 7V5Z"/></symbol>
+<symbol id="next" viewBox="0 0 24 24"><path d="M18 5v14M6 5l10 7-10 7V5Z"/></symbol>
+<symbol id="loop" viewBox="0 0 24 24"><path d="M5 9h12l-3-3m5 9H7l3 3M5 9l-2 2m2-2 2 2m12 4 2-2m-2 2-2-2"/></symbol>
+<symbol id="link" viewBox="0 0 24 24"><path d="m10 8 3-3a4.2 4.2 0 0 1 6 6l-3 3m-2 2-3 3a4.2 4.2 0 0 1-6-6l3-3m1 7 6-10"/></symbol>
+<symbol id="offline" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="m8 16 8-8"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="wallet" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="4"/><path d="M17 5V3L6 5m15 6h-6v4h6m-4-2h.1"/></symbol>
+<symbol id="switch" viewBox="0 0 24 24"><path d="M4 8h13l-3-3m6 11H7l3 3"/></symbol>
+<symbol id="palette" viewBox="0 0 24 24"><circle cx="8" cy="9" r="1.4"/><circle cx="12.5" cy="7" r="1.4"/><circle cx="16.5" cy="10" r="1.4"/><path d="M12 21a9 9 0 1 1 9-9c0 2.2-1.8 3.5-3.6 3.5H16c-1.4 0-2.4 1-2.4 2.2 0 .6.2 1.1.2 1.6 0 .9-.7 1.7-1.8 1.7Z"/></symbol>
+<symbol id="codex" viewBox="0 0 24 24"><g fill="none"><path d="M12 3.2c3.4-2 7 1.2 6.1 4.5 3.5.8 4.4 5.5 1.7 7.7.9 3.6-2.8 6.6-6 5.2-2.4 2.7-7 1.1-7.4-2.5-3.5-.8-4.5-5.1-2-7.6-.8-3.7 3.1-6.7 6.3-5.1L12 3.2Z"/><path d="m9 7 6 3v7l-6-3V7Zm0 0 6-3m0 6 5-2m-5 10 3 3m-9-7-5 1m5-1-3 5m9-9-6 4"/></g></symbol>
+<symbol id="claude" viewBox="0 0 24 24"><g stroke-width="1.65"><path d="m12 2 .5 6m5-4-2.8 5.2M21 7l-5.7 3M22 12l-6-.2m4 6-5-3.7m.8 7-2.4-5.6M10 22l.6-6M4.8 19l4-4.3M2 13l6-1m-5-5 5.7 3M7 2.8 10 8"/></g></symbol>
+<symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+<symbol id="partly" viewBox="0 0 24 24"><circle cx="15" cy="8" r="3.2"/><path d="M6 20a4 4 0 0 1-.6-8 5.5 5.5 0 0 1 10.4-1.2A4.2 4.2 0 0 1 18 20H6Z"/></symbol>
+<symbol id="cloud" viewBox="0 0 24 24"><path d="M6 19a4 4 0 0 1-.6-8 5.5 5.5 0 0 1 10.4-1.2A4.2 4.2 0 0 1 18 19H6Z"/></symbol>
+<symbol id="rain" viewBox="0 0 24 24"><path d="M6 15a4 4 0 0 1-.6-8 5.5 5.5 0 0 1 10.4-1.2A4.2 4.2 0 0 1 18 15H6Z"/><path d="M8 18v2m4-2v3m4-3v2"/></symbol>
+<symbol id="snow" viewBox="0 0 24 24"><path d="M6 14a4 4 0 0 1-.6-8 5.5 5.5 0 0 1 10.4-1.2A4.2 4.2 0 0 1 18 14H6Z"/><path d="M8 18v2m0-1h2m-2 0H6m6 0v2m0-1h2m-2 0h-2"/></symbol>
+<symbol id="fog" viewBox="0 0 24 24"><path d="M6 13a4 4 0 0 1-.6-8 5.5 5.5 0 0 1 10.4-1.2A4.2 4.2 0 0 1 18 13H6Z"/><path d="M5 17h14M7 20h10"/></symbol>
+</defs></svg>
+<main>
+  <nav class="sheet-nav" aria-label="设计板导航"><a href="?board=overview">00 总览</a><a href="?board=statusbar">01 状态栏与呼吸</a><a href="?board=switch">02 主题切换</a><a href="?board=weather">03 天气状态</a><a href="?board=clock">04 时钟</a><a href="?board=autoloop">05 Autoloop</a></nav>
+
+  <section class="board overview" data-board="overview" aria-label="四主题总览">
+    <header class="board-head"><div><h1>Status Island · 深色设计系统 v3</h1><p>四主题全部保留，切换即时生效；网络竖条、CC Switch、呼吸灯、天气与时钟已纳入同一体系。</p></div><p class="board-note">视觉稿 / 示例数据<br>Codex 实施依据见报告</p></header>
+    <div class="overview-grid" id="overview-grid"></div>
+    <p class="board-footnote">所有卡片直接悬浮在桌面上，卡片之间是桌面；没有外层 UI 底板。音乐卡使用专辑封面作为玻璃背景，不跟随主题染色。</p>
+  </section>
+
+  <section class="board statusbar" data-board="statusbar" aria-label="状态栏与呼吸灯">
+    <header class="board-head"><div><h1>状态栏 · 网络竖条 · CC Switch · 呼吸灯</h1><p>左侧竖向条表示网络状态并保留；右侧新增 CC Switch 启动按钮；只有“进行中”的状态才呼吸。</p></div><p class="board-note">01 / 状态与动效</p></header>
+    <div class="state-row" id="state-row"></div>
+    <div class="legend-grid" id="legend-grid"></div>
+    <div class="action-tiles" id="action-tiles"></div>
+    <p class="board-footnote">呼吸节奏：工作中 2.4 s，网络降级 4 s，断开 6 s；在线、空闲为静态。系统开启“减少动态效果”时全部静态。网络竖条始终带图标或文字提示，不只用颜色表达状态。</p>
+  </section>
+
+  <section class="board switch" data-board="switch" aria-label="主题切换">
+    <header class="board-head"><div><h1>主题切换</h1><p>侧边栏头部一个调色盘按钮，四主题即时切换并保存；切换不重启、不打断当前任务。</p></div><p class="board-note">02 / 交互</p></header>
+    <div class="switch-layout">
+      <div class="switch-stage" style="background:#10161d"><div class="stack" id="switch-demo"></div></div>
+      <div class="spec-list">
+        <div class="spec-item"><h3>入口与层级</h3><p>展开态标题栏右侧：CC Switch → 主题 → 收起。收起态不放主题按钮，避免误触；可在展开态切换。</p></div>
+        <div class="spec-item"><h3>菜单内容</h3><p>四项：色点（12 px）+ 名称（14 px）+ 当前勾选（16 px）。菜单宽 216 px、内边距 24 px、行高 32 px、圆角 24 px。</p></div>
+        <div class="spec-item"><h3>即时与持久化</h3><p>选择后立即重绘所有卡片材质与强调色；写入 config.json 的 theme 字段，值为 tide / pine / iris / amber。下次启动沿用。</p></div>
+        <div class="spec-item"><h3>键盘与无障碍</h3><p>按钮可聚焦，Enter/Space 打开菜单；上下键移动，Enter 选择，Esc 关闭。焦点环 2 px。当前项 aria-checked。</p></div>
+      </div>
+    </div>
+    <p class="board-footnote">演示卡使用表面材质示意，实际实现应复用卡片玻璃层与主题 token。</p>
+  </section>
+
+  <section class="board weather" data-board="weather" aria-label="天气状态设计">
+    <header class="board-head"><div><h1>天气插件 · 背景随天气状态</h1><p>六种典型天气各有配色与图形，文字始终可读；状态同时用图标与文字表达，不只依赖颜色。</p></div><p class="board-note">03 / 插件</p></header>
+    <div class="weather-grid" id="weather-grid"></div>
+    <div class="w-anatomy">
+      <p>背景由天气状态渐变 + 深色玻璃层合成，透明度 42%，任何状态文字对比度保持 4.5:1 以上。</p>
+      <p>字段顺序固定：城市 → 温度（32 px 显示档）→ 天气图标与文字 → 最高/最低 → 降水或风向。</p>
+      <p>未知或取数失败显示“天气暂不可用”，保留城市与重试入口；不猜测天气，不使用旧数据冒充实时。</p>
+    </div>
+  </section>
+
+  <section class="board clock" data-board="clock" aria-label="时钟设计">
+    <header class="board-head"><div><h1>时钟 · 更大更清楚</h1><p>时间成为卡片的视觉焦点：32 px（方块）/ 40 px（长条）显示档，日期与星期退为辅助信息。</p></div><p class="board-note">04 / 插件</p></header>
+    <div class="clock-grid" id="clock-grid"></div>
+    <p class="board-footnote">显示档是唯一在 12 / 14 / 16 / 20 之外的例外，仅用于时间与温度这两个数据焦点；其他文字不越档。秒针与呼吸点保持克制，不使用闪烁。</p>
+  </section>
+
+  <section class="board autoloop" data-board="autoloop" aria-label="Autoloop 设计">
+    <header class="board-head"><div><h1>Autoloop · 三种状态</h1><p>未连接保持现状语义；运行中展示最多三项任务与呼吸指示；全部完成回到空闲。</p></div><p class="board-note">05 / 插件</p></header>
+    <div class="autoloop-grid" id="autoloop-grid"></div>
+    <p class="board-footnote">Autoloop 目前未接入真实服务；视觉效果不改变其“未连接”的真实状态。任务数量超过三项时显示“+N 项”并可在展开面板查看。</p>
+  </section>
+</main>
+<script>
+const themes = [
+  {id:'tide', name:'深海蓝灰', desc:'潮汐蓝深色版', menuName:'深海蓝灰', tintRgb:[14,43,66], faceRgb:[142,188,220], lightRgb:[202,232,252], accent:'#6baee8', button:'#a4cbdd', buttonInk:'#153749', swatch:'#6baee8', ink:'#eef5f7', secondary:'#c3d3df', tint:'#a9d7eb', track:'rgba(173,204,224,.16)', panel:'#13283a'},
+  {id:'pine', name:'墨松绿', desc:'雾松绿深色版', menuName:'墨松绿', tintRgb:[12,53,34], faceRgb:[139,199,162], lightRgb:[209,240,219], accent:'#6abb9a', button:'#aed4ba', buttonInk:'#183b2b', swatch:'#6abb9a', ink:'#eef5f7', secondary:'#c3d8cf', tint:'#bfe4cc', track:'rgba(160,214,182,.16)', panel:'#0f2a20'},
+  {id:'iris', name:'烟紫黑', desc:'暮光紫深色版', menuName:'烟紫黑', tintRgb:[57,28,72], faceRgb:[190,157,218], lightRgb:[233,216,255], accent:'#ba93d8', button:'#d8bfea', buttonInk:'#412855', swatch:'#ba93d8', ink:'#f4eef9', secondary:'#cfc2dc', tint:'#d9c2ee', track:'rgba(206,182,230,.16)', panel:'#241b30'},
+  {id:'amber', name:'暖烟棕', desc:'暖杏白深色版', menuName:'暖烟棕', tintRgb:[70,43,24], faceRgb:[214,179,131], lightRgb:[250,229,198], accent:'#d5a575', button:'#e4c7a4', buttonInk:'#50391f', swatch:'#d5a575', ink:'#f7efe6', secondary:'#dbc9b6', tint:'#ecd2ab', track:'rgba(231,205,170,.16)', panel:'#2a1d12'}
+];
+const album = 'data:image/webp;base64,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';
+const icon = (name, cls='') => `<svg class="icon ${cls}" aria-hidden="true"><use href="#${name}"/></svg>`;
+const brand = (name) => `<svg class="brand-logo ${name}-brand" aria-hidden="true"><use href="#${name}"/></svg>`;
+const vars = t => `--panel-rgb:${t.tintRgb.join(',')};--accent:${t.accent};--tint:${t.tint};--track:${t.track};--ink:${t.ink};--secondary:${t.secondary};`;
+function netbar(state){ return `<span class="netbar ${state}" role="img" aria-label="${state==='degraded'?'网络降级':state==='offline'?'网络已断开':'网络正常'}"></span>`; }
+function ccSwitch(){ return `<button class="icon-btn demo" type="button" aria-label="启动 CC Switch">${icon('switch','m')}<span class="tip">启动 CC Switch</span></button>`; }
+function themeButton(){ return `<button class="icon-btn demo" type="button" aria-label="切换主题">${icon('palette','m')}<span class="tip">切换主题</span></button>`; }
+function compact(state='good'){ return `<article class="compact glass-card" style="${state==='degraded'?'--warning:#d9b45f;':''}">${netbar(state)}<div class="compact-row1"><span class="compact-gpu">${icon('chip','s')}<span>GPU&nbsp;<strong>17.0%</strong></span></span><span class="compact-vram">2.0 / 6 GiB</span><span class="compact-actions">${ccSwitch()}<button class="icon-btn demo" type="button" aria-label="收起状态岛">${icon('chevron','s')}</button></span></div><div class="compact-row2"><span class="compact-agents"><span class="compact-agent">${brand('codex')}<span>Codex&nbsp;</span><span class="state"><i class="led breathe dot-inline"></i>工作中</span></span><span class="compact-agent">${brand('claude')}<span>Claude&nbsp;</span><span class="state"><i class="led dot-inline"></i>在线</span></span></span><span></span></div></article>`; }
+function metric(name,value,width,state='',extra='',tag=''){ return `<div class="metric ${state}" role="group" aria-label="${name} ${value}"><div class="metric-line"><span class="metric-label">${name}${tag?`<span class="tag">${icon('alert','xs')}${tag}</span>`:''}</span><span class="metric-value">${value}${extra?` <span class="secondary">${extra}</span>`:''}</span></div><div class="meter" role="meter" aria-valuenow="${width}" aria-valuemin="0" aria-valuemax="100"><div class="meter-fill" style="width:${width}%"></div></div></div>`; }
+function track(){ return `<div class="track-info"><img class="album" src="${album}" alt="地球儀专辑封面"><div><h3 class="song-title">地球儀</h3><p class="artist">米津玄師</p><p class="lyrics-note">歌词版本未确认</p></div></div>`; }
+function sidebarHTML(t, opts={}){
+  return `<div class="stack sidebar" style="${vars(t)}">
+    <section class="glass-card panel system-card" aria-label="系统状态">
+      <header class="panel-head"><div class="head-brand">${icon('activity')}<h3>状态台</h3></div><div class="head-actions">${ccSwitch()}${themeButton()}<button class="icon-btn demo" type="button" aria-label="收起面板">${icon('chevron','s')}</button></div></header>
+      <div class="metrics">${metric('CPU Utility','63.6%',63.6)}${metric('内存','91.0%',91,'danger','','偏高')}${metric('磁盘 D','78.7%',78.7,'warning')}${metric('GPU · NVIDIA','57.0%',57,'','1.8 / 6 GiB')}</div>
+      <div class="agents"><button class="agent demo" type="button">${'<span class="agent-brand">'+brand('codex')+'</span>'}<span><span class="agent-name">Codex</span><span class="agent-state"><i class="led breathe"></i>工作中</span></span></button><button class="agent demo" type="button"><span class="agent-brand">${brand('claude')}</span><span><span class="agent-name">Claude</span><span class="agent-state"><i class="led"></i>在线</span></span></button></div>
+      <div class="services"><div><div class="service-title">网站耗时</div><div class="service-value">28 ms&nbsp;<span class="service-title">· 1/3</span>${icon('refresh')}</div></div><div><div class="service-title">DeepSeek 余额</div><div class="service-value">¥9.07${icon('wallet')}</div></div></div>
+      <div class="voice-row"><button class="voice demo" type="button">${icon('speaker','xs')}<span>厄祈千羽</span>${icon('chevron','xs')}</button><button class="voice demo" type="button">${icon('speaker','xs')}<span>卡芙卡</span>${icon('chevron','xs')}</button></div>
+    </section>
+    <section class="glass-card panel music-card" aria-label="音乐播放器">
+      <div class="cover-glass" aria-hidden="true" style="background-image:url('${album}')"></div>
+      <div class="cover-shade" aria-hidden="true"></div>
+      ${track()}
+      <div class="scrubber"><span class="track" role="meter" aria-valuenow="184" aria-valuemin="0" aria-valuemax="273"><span class="track-fill"></span></span><div class="track-times"><span>3:04</span><span>4:33</span></div></div>
+      <div class="playback"><button class="transport demo" type="button" aria-label="上一首">${icon('previous')}</button><button class="transport play demo" type="button" aria-label="播放">${icon('play')}</button><button class="transport demo" type="button" aria-label="下一首">${icon('next')}</button></div>
+    </section>
+    <div class="duo">
+      ${weatherTile(t,'partly','多云','17°','高 19°　低 13°','降水 0 mm')}
+      ${clockTile(t)}
+    </div>
+    ${autoloopHTML('offline',t)}
+    <button class="add-widget demo" type="button">${icon('plus','s')}<span>添加组件</span></button>
+  </div>`;
+}
+function weatherTile(t, state, text, temp, range, precip){
+  const wash = weatherWash(state);
+  return `<section class="tile glass-card weather" style="${vars(t)}" aria-label="上海天气：${text}"><div class="state-tint" style="background:${wash}"></div><h3 class="weather-city">上海</h3><div class="weather-main"><span class="weather-temp">${temp}</span>${weatherGlyph(state)}</div><p class="weather-line">${text} · ${precip}</p><p class="weather-line">${range}</p></section>`;
+}
+function weatherWash(state){ const m={sunny:'linear-gradient(160deg,#5f9fc4 0%,#d9b878 100%)',partly:'linear-gradient(160deg,#6f8ea8 0%,#a8b6bd 100%)',overcast:'linear-gradient(160deg,#6b7783 0%,#8d98a2 100%)',rain:'linear-gradient(160deg,#486a86 0%,#2f4b66 100%)',snow:'linear-gradient(160deg,#7f9db4 0%,#cfdde7 100%)',fog:'linear-gradient(160deg,#74828d 0%,#a3adb4 100%)'}; return m[state]||m.partly; }
+function weatherGlyph(state){ const id={sunny:'sun',partly:'partly',overcast:'cloud',rain:'rain',snow:'snow',fog:'fog'}[state]||'partly'; return `<svg class="weather-glyph" role="img" aria-label="${state}">${''}<use class="icon-outer" href="#${id}"/></svg>`; }
+function clockFace(){ let ticks=''; for(let i=0;i<60;i++){ const a=i*Math.PI/30, r1=i%5===0?20:23; const p=r=>[28+Math.sin(a)*r,28-Math.cos(a)*r]; const [x1,y1]=p(r1),[x2,y2]=p(25); ticks+=`<line class="tick" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" opacity="${i%5===0?'.7':'.35'}"/>`; } return `<svg class="clock-ticks" viewBox="0 0 56 56" aria-hidden="true">${ticks}<path class="hand" d="M28 28 20 34" stroke-width="2.4"/><path class="hand" d="M28 28 32 18" stroke-width="1.8"/><circle cx="28" cy="28" r="1.6" fill="currentColor" stroke="none"/></svg>`; }
+function clockTile(t){ return `<section class="tile glass-card clock" style="${vars(t)}" aria-label="时钟 09:41，11月6日 星期五">${clockFace()}<div><div class="clock-time">09:41</div><p class="clock-sub">11月6日 星期五</p><p class="clock-sub">第 45 周</p></div><span></span></section>`; }
+function autoloopHTML(mode, t){
+  const head = `<header class="panel-head"><div class="autoloop-title">${icon('loop')}<h3>Autoloop</h3></div>${mode==='offline'?`<span class="autoloop-state"><i class="led hollow"></i>未连接</span>`:mode==='running'?`<span class="autoloop-state"><i class="led breathe"></i>运行中</span>`:`<span class="autoloop-state"><i class="led"></i>已完成</span>`}</header>`;
+  if(mode==='running') return `<section class="glass-card panel autoloop running" style="${vars(t)}">${head}<div class="task-list"><div class="task"><span class="task-name"><i class="led breathe"></i>整理今日截图</span><span class="task-time">运行 02:14</span></div><div class="task"><span class="task-name"><i class="led hollow"></i>等待：生成周报</span><span class="task-time">排队中</span></div><div class="task"><span class="task-name"><i class="led hollow"></i>汇总下载目录</span><span class="task-time">排队中</span></div></div><div class="task-actions"><button class="text-link demo" type="button">暂停全部</button><button class="text-link demo" type="button">打开 Autoloop${icon('link','xs')}</button></div></section>`;
+  if(mode==='done') return `<section class="glass-card panel autoloop" style="${vars(t)}">${head}<div class="autoloop-empty"><p>今日 3 项任务已完成</p><button class="text-link demo" type="button">查看记录</button></div></section>`;
+  return `<section class="glass-card panel autoloop" style="${vars(t)}">${head}<div class="autoloop-empty"><p>连接后显示任务</p><button class="text-link demo" type="button">连接${icon('link','xs')}</button></div></section>`;
+}
+function themeMenu(current){ return `<div class="theme-menu" role="menu" aria-label="选择主题">${themes.map(t=>`<button class="theme-option" role="menuitemradio" aria-checked="${t.id===current}" data-choose="${t.id}"><span class="left"><span class="swatch" style="background:${t.swatch}"></span>${t.menuName}</span>${t.id===current?icon('check','s'):''}</button>`).join('')}</div>`; }
+
+/* overview */
+document.querySelector('#overview-grid').innerHTML = themes.map(t=>`<article class="theme-col">
+  <div class="theme-head"><div><h2>${t.name}</h2><p>${t.desc}</p></div></div>
+  <div class="stage" data-theme="${t.id}">${compact()}${sidebarHTML(t)}</div>
+</article>`).join('');
+
+/* statusbar board */
+document.querySelector('#state-row').innerHTML = [['good','正常','网络正常 · 竖条常亮'],['degraded','降级','网络降级 · 4 s 呼吸'],['offline','断开','网络断开 · 6 s 呼吸 + 警告']].map(([s,label,sub])=>`<div class="state-cell"><div class="stage case-solid" style="padding:24px;height:auto">${compact(s)}</div><div class="state-label"><span>${label}</span><span>${sub}</span></div></div>`).join('');
+document.querySelector('#legend-grid').innerHTML = [
+  ['工作中 LED','#67cfa5','breathe','2.4 s 呼吸，表示正在进行'],
+  ['在线 LED','#67cfa5','','静态实心，表示可用'],
+  ['空闲 LED','#c3d3df','hollow','空心，表示待命'],
+  ['未连接 LED','#e0808a','off','实心暗红 + 文字，表示不可用']
+].map(([name,color,cls,note])=>`<div class="legend-tile"><span class="sample"><i class="led ${cls}" style="background:${cls==='hollow'?'transparent':color}"></i></span><div><h3>${name}</h3><p>${note}</p></div></div>`).join('');
+document.querySelector('#action-tiles').innerHTML = [
+  ['默认','CC Switch 未聚焦','switch'],
+  ['悬停 / 聚焦','背景提亮，提示气泡','switch'],
+  ['启动中','按钮禁用，呼吸转圈','spinner'],
+  ['未检测到','40% 透明度，提示未安装','switch']
+].map(([name,note,ico],i)=>`<div class="action-tile"><button class="icon-btn ${i===2?'busy':''}" type="button" ${i===3?'disabled aria-disabled="true"':''}>${i===2?'<span class="spinner"></span>':icon('switch','m')}<span class="tip">${name==='未检测到'?'未检测到 CC Switch':'启动 CC Switch'}</span></button><div><h3>${name}</h3><p>${note}</p></div></div>`).join('');
+
+/* switch board */
+document.querySelector('#switch-demo').innerHTML = `<div class="demo-card" id="demo-card" style="${vars(themes[0])}" aria-label="主题切换演示">
+  <header class="demo-head"><div class="head-brand">${icon('activity')}<h3>状态台</h3></div><div class="head-actions">${ccSwitch()}<span class="menu-anchor"><button class="icon-btn" id="theme-open" type="button" aria-haspopup="menu" aria-expanded="true" aria-label="切换主题">${icon('palette','m')}</button>${themeMenu(themes[0].id)}</span><button class="icon-btn demo" type="button" aria-label="收起面板">${icon('chevron','s')}</button></div></header>
+  <div class="metrics">${metric('CPU Utility','63.6%',63.6)}${metric('内存','91.0%',91,'danger','','偏高')}${metric('磁盘 D','78.7%',78.7,'warning')}${metric('GPU · NVIDIA','57.0%',57,'','1.8 / 6 GiB')}</div>
+  <div class="agents"><button class="agent demo" type="button"><span class="agent-brand">${brand('codex')}</span><span><span class="agent-name">Codex</span><span class="agent-state"><i class="led breathe"></i>工作中</span></span></button><button class="agent demo" type="button"><span class="agent-brand">${brand('claude')}</span><span><span class="agent-name">Claude</span><span class="agent-state"><i class="led"></i>在线</span></span></button></div>
+  <div class="services"><div><div class="service-title">网站耗时</div><div class="service-value">28 ms&nbsp;<span class="service-title">· 1/3</span>${icon('refresh')}</div></div><div><div class="service-title">DeepSeek 余额</div><div class="service-value">¥9.07${icon('wallet')}</div></div></div>
+</div>`;
+document.querySelector('#demo-card').addEventListener('click', e=>{
+  const choose = e.target.closest('[data-choose]'); const open = e.target.closest('#theme-open');
+  if(choose){ const t = themes.find(x=>x.id===choose.dataset.choose); const card = document.querySelector('#demo-card'); card.setAttribute('style', vars(t)); card.querySelector('.theme-menu').outerHTML = themeMenu(t.id); }
+  else if(open) document.querySelector('#demo-card .theme-menu').toggleAttribute('hidden');
+});
+
+/* weather board */
+document.querySelector('#weather-grid').innerHTML = [['sunny','晴天','24°','晴','降水 0 mm','高 26°　低 15°'],['partly','多云','17°','多云','降水 0 mm','高 19°　低 13°'],['overcast','阴天','15°','阴','云量 90%','高 17°　低 11°'],['rain','小雨','12°','小雨','降水 4 mm','高 14°　低 9°'],['snow','小雪','-2°','小雪','降水 2 mm','高 1°　低 -6°'],['fog','雾','9°','雾','能见度 800 m','高 12°　低 6°']].map(([s,label,temp,text,precip,range])=>`<div><div class="weather-demo" style="background:linear-gradient(160deg, rgba(14,43,66,.94), rgba(10,22,34,.94))"><div class="state-tint" style="background:${weatherWash(s)}"></div><div style="position:relative;z-index:1"><div style="display:flex;align-items:center;justify-content:space-between"><h3 class="weather-city">上海</h3><span class="badge">${label}</span></div><div class="weather-main"><span class="weather-temp">${temp}</span><svg class="weather-glyph icon" role="img" aria-label="${text}" style="color:#eef5f7"><use href="#${({sunny:'sun',partly:'partly',overcast:'cloud',rain:'rain',snow:'snow',fog:'fog'})[s]}"/></svg></div><div class="weather-meta"><p class="weather-line">${text} · ${precip}</p><p class="weather-line">${range}</p></div></div></div><div class="w-label"><span>${label}</span><span>state: ${s}</span></div></div>`).join('');
+
+/* clock board */
+document.querySelector('#clock-grid').innerHTML = `
+  <div class="clock-cell"><div class="label"><span>A · 方块（侧边栏默认）</span><span>168 × 160</span></div>${clockTile(themes[0])}</div>
+  <div class="clock-cell"><div class="label"><span>B · 长条布局</span><span>408 × 120</span></div><section class="tile wide glass-card" style="height:120px;${vars(themes[0])}"><div class="wide-clock-row"><span class="wide-clock-time">09:41</span><span class="wide-clock-sub">11月6日 星期五</span></div><div class="wide-clock-row"><span class="badge">第 45 周</span><span class="wide-clock-sub">上海</span></div></section></div>
+  <div class="clock-cell"><div class="label"><span>C · 表盘 + 数字备选</span><span>168 × 160</span></div><section class="tile glass-card" style="height:160px;${vars(themes[0])};display:grid;grid-template-columns:88px 1fr;gap:24px;align-items:center"><svg viewBox="0 0 88 88" style="width:88px;height:88px" role="img" aria-label="表盘"><circle cx="44" cy="44" r="42" fill="none" stroke="rgba(195,211,223,.3)"/><g stroke="rgba(195,211,223,.55)"><line x1="44" y1="4" x2="44" y2="9"/><line x1="84" y1="44" x2="79" y2="44"/><line x1="44" y1="84" x2="44" y2="79"/><line x1="4" y1="44" x2="9" y2="44"/></g><path d="M44 44 28 54" stroke="#eef5f7" stroke-width="3" stroke-linecap="round"/><path d="M44 44 50 24" stroke="#eef5f7" stroke-width="2" stroke-linecap="round"/><circle cx="44" cy="44" r="3" fill="#eef5f7"/></svg><div><div class="clock-time">09:41</div><p class="clock-sub">11月6日 星期五</p></div></section></div>
+  <p class="board-footnote">推荐 A（方块，与天气并排）；长条布局选 B；C 仅在保留现有表盘视觉、需要更清晰时使用。</p>`;
+
+/* autoloop board */
+document.querySelector('#autoloop-grid').innerHTML = [
+  ['offline','未连接 · 当前状态','保持现有语义：明确未接入'],
+  ['running','运行中 · 设计建议','当前任务呼吸，排队静态'],
+  ['done','已完成 · 空闲','回到安静状态，不呼吸']
+].map(([mode,label,note])=>`<div class="auto-cell"><div class="label"><span>${label}</span><span>${note}</span></div><div class="stage case-solid" style="height:auto;padding:24px;background:#10161d"><div class="stack">${autoloopHTML(mode, themes[0])}</div></div></div>`).join('');
+
+/* board routing + wallpaper + export */
+function wallpaperSvg(){
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="408" height="1440" viewBox="0 0 408 1440">
+  <defs>
+    <linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#111315"/><stop offset=".5" stop-color="#1d2227"/><stop offset="1" stop-color="#101316"/></linearGradient>
+    <linearGradient id="r" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#414a50"/><stop offset=".28" stop-color="#2d353c"/><stop offset=".54" stop-color="#738086"/><stop offset=".75" stop-color="#293137"/><stop offset="1" stop-color="#41484e"/></linearGradient>
+    <radialGradient id="a"><stop stop-color="#3e4853" stop-opacity=".55"/><stop offset="1" stop-color="#1c242b" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="408" height="1440" fill="url(#b)"/>
+  <ellipse cx="350" cy="300" rx="300" ry="340" fill="url(#a)"/>
+  <path d="M-110-70C520-15 490 300 250 390S-70 720 162 880 510 1190 170 1460" fill="none" stroke="#090b0e" stroke-width="132" opacity=".65"/>
+  <path d="M-110-88C520-33 490 282 250 372S-70 702 162 862 510 1172 170 1442" fill="none" stroke="url(#r)" stroke-width="96"/>
+  <path d="M-110-40C520 15 490 330 250 420S-70 750 162 910 510 1220 170 1490" fill="none" stroke="#aeb9bf" stroke-width="1" opacity=".20"/>
+  <g fill="none" stroke="#9ca5ad" stroke-width="1" opacity=".10"><circle cx="342" cy="640" r="142"/><circle cx="342" cy="640" r="166"/><circle cx="342" cy="640" r="190"/></g>
+  </svg>`;
+}
+document.querySelectorAll('.stage').forEach(stage => { stage.style.backgroundImage = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(wallpaperSvg())}")`; });
+const q = new URLSearchParams(location.search);
+const active = q.get('board') || 'all';
+document.querySelectorAll('section[data-board]').forEach(s=>{ if(active==='all'||s.dataset.board===active) s.classList.add('active'); });
+if(q.has('export')) document.body.classList.add('export');
+window.designSystemReady = true;
+</script>
+</body>
+</html>
