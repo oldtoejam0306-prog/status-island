@@ -13,8 +13,8 @@ using System.Web.Script.Serialization;
 namespace IslandIntegrated {
  public sealed class AutoloopOption { public string Id {get;set;} public string Label {get;set;} public AutoloopOption(){Id="";Label="";} }
  public sealed class AutoloopSnapshot {
-  public string State {get;set;} public string Summary {get;set;} public string TaskTitle {get;set;} public string QuestionId {get;set;} public string QuestionText {get;set;} public string CardFingerprint {get;set;} public AutoloopOption[] Options {get;set;} public DateTimeOffset? ObservedAt {get;set;}
-  public AutoloopSnapshot(){State="offline";Summary="Autoloop 暂不可用";TaskTitle=QuestionId=QuestionText=CardFingerprint="";Options=new AutoloopOption[0];}
+  public string State {get;set;} public string Summary {get;set;} public string TaskTitle {get;set;} public string CardKind {get;set;} public string QuestionId {get;set;} public string QuestionText {get;set;} public string CardFingerprint {get;set;} public AutoloopOption[] Options {get;set;} public int PendingCount {get;set;} public DateTimeOffset? ObservedAt {get;set;}
+  public AutoloopSnapshot(){State="offline";Summary="Autoloop 暂不可用";TaskTitle=CardKind=QuestionId=QuestionText=CardFingerprint="";Options=new AutoloopOption[0];}
  }
  public sealed class AutoloopActionResult { public string State {get;set;} public string Message {get;set;} public AutoloopActionResult(){State="unknown";Message="结果未知，请刷新查看";} }
  public sealed class AutoloopBridge : IDisposable {
@@ -45,11 +45,11 @@ namespace IslandIntegrated {
     TimeSpan age=DateTimeOffset.UtcNow-observed;
     if(age>TimeSpan.FromMinutes(2)||age<TimeSpan.FromMinutes(-2))return new AutoloopSnapshot{State="stale",Summary="Autoloop 状态已过期",ObservedAt=observed};
     var cards=root["cards"] as object[]; int pending=Convert.ToInt32(root["pendingCount"],CultureInfo.InvariantCulture); if(cards==null||pending<0||pending>50||cards.Length!=pending)throw new InvalidDataException();
-    var snap=new AutoloopSnapshot{State="connected",Summary=((bool)root["running"]?"运行中":"空闲")+" · "+pending+" 张待处理卡片",ObservedAt=observed};
+    var snap=new AutoloopSnapshot{State="connected",Summary=((bool)root["running"]?"运行中":"空闲")+" · "+pending+" 张待处理卡片",PendingCount=pending,ObservedAt=observed};
     Dictionary<string,object> selected=null; foreach(var c in cards){var card=Object(c);if(Str(card,"kind")=="ask"){selected=card;break;}} if(selected==null&&cards.Length>0)selected=Object(cards[0]);
     if(selected!=null){long id=Convert.ToInt64(selected["id"],CultureInfo.InvariantCulture);string fp=Str(selected,"fingerprint");if(id<1||id>9007199254740991L||!Fingerprint(fp)||Str(selected,"state")!="open")throw new InvalidDataException();
-     snap.QuestionId=id.ToString(CultureInfo.InvariantCulture);snap.CardFingerprint=fp;snap.TaskTitle=Str(selected,"title");snap.QuestionText=Str(selected,"text");
-     if(Str(selected,"kind")=="ask"){var opts=selected["options"] as object[];if(opts==null||opts.Length>32)throw new InvalidDataException();var list=new List<AutoloopOption>();for(int i=0;i<opts.Length;i++){if(!(opts[i] is string))throw new InvalidDataException();list.Add(new AutoloopOption{Id=i.ToString(CultureInfo.InvariantCulture),Label=(string)opts[i]});}snap.Options=list.ToArray();}
+     snap.CardKind=Str(selected,"kind");snap.QuestionId=id.ToString(CultureInfo.InvariantCulture);snap.CardFingerprint=fp;snap.TaskTitle=Str(selected,"title");snap.QuestionText=Str(selected,"text");
+     if(snap.CardKind=="ask"){var opts=selected["options"] as object[];if(opts==null||opts.Length>32)throw new InvalidDataException();var list=new List<AutoloopOption>();for(int i=0;i<opts.Length;i++){if(!(opts[i] is string))throw new InvalidDataException();list.Add(new AutoloopOption{Id=i.ToString(CultureInfo.InvariantCulture),Label=(string)opts[i]});}snap.Options=list.ToArray();}
     } return snap;
    }catch(OperationCanceledException){return new AutoloopSnapshot{Summary="Autoloop 查询已中断"};}catch{return new AutoloopSnapshot();}
   }

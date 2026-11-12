@@ -31,6 +31,7 @@ namespace IslandIntegrated {
     public AutoloopActionResult PriorSubmission {get{return priorSubmission;}set{priorSubmission=value;RestorePriorSubmission();}}
     public bool ReduceMotion {get;set;}
     readonly AutoloopSnapshot bridgeSnapshot;
+    readonly Rectangle? requestedWorkingArea;
     readonly FlowLayoutPanel content=new FlowLayoutPanel{Dock=DockStyle.Fill,FlowDirection=FlowDirection.TopDown,WrapContents=false,AutoScroll=true,Padding=new Padding(20,12,20,20),BackColor=Color.Transparent};
     readonly Label connection=new Label{AutoSize=true,MaximumSize=new Size(306,0)};
     readonly Label problem=new Label{AutoSize=true,MaximumSize=new Size(306,0)};
@@ -47,17 +48,25 @@ namespace IslandIntegrated {
     readonly Dictionary<string,AutoloopActionResult> attempted=new Dictionary<string,AutoloopActionResult>();
     readonly HashSet<string> retryAllowed=new HashSet<string>();
     bool closing,submitted,directClose,fadeOut,answerInFlight; long animationStart; double animationFrom;
-    public AutoloopDetailView(AutoloopSnapshot snapshot) {
+    public AutoloopDetailView(AutoloopSnapshot snapshot):this(snapshot,null) { }
+    public AutoloopDetailView(AutoloopSnapshot snapshot,Rectangle? workingArea) {
       bridgeSnapshot=snapshot;
-      FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;StartPosition=FormStartPosition.Manual;ClientSize=new Size(CornerLayout.Width,Math.Min(600,Math.Max(360,Screen.PrimaryScreen.WorkingArea.Height-32)));Text="Autoloop 详情";BackColor=Palette.Base;
+      requestedWorkingArea=workingArea;var initialArea=workingArea??Screen.PrimaryScreen.WorkingArea;
+      FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;StartPosition=FormStartPosition.Manual;ClientSize=DetailSizeForWorkingArea(initialArea);Text="Autoloop 详情";BackColor=Palette.Base;
       AccessibleName="Autoloop 详情";Controls.Add(content);var topbar=new Panel{Dock=DockStyle.Top,Height=42,BackColor=Color.Transparent};topbar.Controls.Add(closeButton);Controls.Add(topbar);topbar.BringToFront();closeButton.Click+=(s,e)=>RequestClose();KeyPreview=true;KeyDown+=(s,e)=>{if(e.KeyCode==Keys.Escape){e.Handled=true;RequestClose();}};Font=new Font("Microsoft YaHei UI",14f,FontStyle.Regular,GraphicsUnit.Pixel);content.Controls.Add(Heading("Autoloop"));
       connection.ForeColor=Palette.Secondary;problem.ForeColor=Palette.Text;projectSummary.ForeColor=Palette.Secondary;audiobookSummary.ForeColor=Palette.Secondary;
       content.Controls.Add(connection);content.Controls.Add(Section("当前问题"));content.Controls.Add(problem);content.Controls.Add(choices);content.Controls.Add(actionState);content.Controls.Add(Section("项目概览"));content.Controls.Add(projectSummary);content.Controls.Add(Section("有声书观察"));content.Controls.Add(audiobookSummary);content.Controls.Add(refreshButton);
       refreshButton.Click+=async(s,e)=>await RefreshAll();animation.Tick+=Animate;
       UpdateBridge(snapshot);PresentProjects(null);
-      Shown+=async(s,e)=>{var area=Screen.FromControl(Owner??this).WorkingArea;int right=Owner==null?area.Right-16:Owner.Left+Math.Min(CornerLayout.Width,Owner.ClientSize.Width);Location=new Point(Math.Max(area.Left+16,Math.Min(right-Width,area.Right-Width-16)),Math.Max(area.Top+16,Math.Min(Owner==null?area.Top+16:Owner.Top,area.Bottom-Height-16)));Opacity=Reduced?1:0;if(!Reduced){animationFrom=0;animationStart=clock.Now;animationPrecision.SetActive(true);animation.Start();}await LoadProjectsOnce();};
+      Shown+=async(s,e)=>{var area=requestedWorkingArea??Screen.FromControl(Owner??this).WorkingArea;var ownerBounds=Owner==null?Rectangle.Empty:Owner.Bounds;int ownerWidth=Owner==null?0:Owner.ClientSize.Width;Location=BoundsInWorkingArea(area,ownerBounds,ownerWidth,Owner!=null,Size).Location;Opacity=Reduced?1:0;if(!Reduced){animationFrom=0;animationStart=clock.Now;animationPrecision.SetActive(true);animation.Start();}await LoadProjectsOnce();};
       FormClosing+=(s,e)=>{if(!directClose&&!Reduced){e.Cancel=true;BeginClose();return;}closing=true;animation.Stop();animationPrecision.SetActive(false);lifetime.Cancel();};
     }
+    internal static Size DetailSizeForWorkingArea(Rectangle area){
+      return new Size(
+        Math.Max(1,Math.Min(CornerLayout.Width,area.Width-32)),
+        Math.Max(1,Math.Min(600,area.Height-32)));
+    }
+    internal static Rectangle BoundsInWorkingArea(Rectangle area,Rectangle ownerBounds,int ownerWidth,bool hasOwner,Size size){int minX=area.Left+16,minY=area.Top+16,maxX=Math.Max(minX,area.Right-size.Width-16),maxY=Math.Max(minY,area.Bottom-size.Height-16);int desiredRight=hasOwner?ownerBounds.Left+Math.Min(CornerLayout.Width,ownerWidth):area.Right-16;int desiredTop=hasOwner?ownerBounds.Top:area.Top+16;int x=Math.Max(minX,Math.Min(desiredRight-size.Width,maxX));int y=Math.Max(minY,Math.Min(desiredTop,maxY));return new Rectangle(x,y,size.Width,size.Height);}
     bool Reduced {get{return ReduceMotion||SystemInformation.HighContrast||!SystemInformation.UIEffectsEnabled;}}
     void RestorePriorSubmission(){if(priorSubmission==null||bridgeSnapshot==null||String.IsNullOrEmpty(bridgeSnapshot.QuestionId)||String.IsNullOrEmpty(bridgeSnapshot.CardFingerprint))return;attempted[QuestionKey(bridgeSnapshot)]=priorSubmission;UpdateBridge(bridgeSnapshot);}
     void Animate(object sender,EventArgs e){double duration=fadeOut?320:220;double t=Math.Min(1,(clock.Now-animationStart)/duration);double eased=1-Math.Pow(1-t,3);Opacity=fadeOut?animationFrom*(1-eased):animationFrom+(1-animationFrom)*eased;if(t>=1){animation.Stop();animationPrecision.SetActive(false);if(fadeOut){directClose=true;Close();}}}

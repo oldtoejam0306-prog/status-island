@@ -166,7 +166,23 @@ namespace IslandIntegrated {
       }
     }
     int PinkyReservedHeight { get { var size = PinkyPanelSize; return size.IsEmpty ? 0 : size.Height + WidgetGrid.Gap; } }
-    int NotificationReservedHeight { get { return AihotNotificationLayout.ReservedHeight(aihot!=null&&aihot.NotificationOpen,PinkyPanelRequested); } }
+    bool AutoloopNotificationReserved {
+      get {
+        bool exists=autoloopNotification!=null;
+        bool disposed=exists&&autoloopNotification.IsDisposed;
+        return AutoloopNotificationPolicy.IsReserved(exists,disposed);
+      }
+    }
+    bool AutoloopNotificationOpen {
+      get {
+        bool exists=autoloopNotification!=null;
+        bool disposed=exists&&autoloopNotification.IsDisposed;
+        bool visible=exists&&autoloopNotification.Visible;
+        bool pushSucceeded=exists&&autoloopNotification.LastPushSucceeded;
+        return AutoloopNotificationPolicy.IsDelivered(exists,disposed,visible,pushSucceeded);
+      }
+    }
+    int NotificationReservedHeight { get { return AihotNotificationLayout.ReservedHeight((aihot!=null&&aihot.NotificationOpen)||AutoloopNotificationReserved,PinkyPanelRequested); } }
     Rectangle PinkyPanelSlot
     {
       get
@@ -179,6 +195,8 @@ namespace IslandIntegrated {
     readonly System.Threading.CancellationTokenSource autoloopCancellation=new System.Threading.CancellationTokenSource();
     AutoloopSnapshot autoloopSnapshot; bool autoloopReading,autoloopSubmitting; DateTime autoloopNext=DateTime.MinValue; string autoloopFeedback,autoloopSubmittedQuestion,autoloopSubmissionState;
     Task<AutoloopSnapshot> autoloopReadTask;
+    readonly AutoloopReminderState autoloopReminder=new AutoloopReminderState();
+    AutoloopNotificationForm autoloopNotification; string autoloopNotificationKey,autoloopAihotDeferredKey,autoloopNoticeDiagnosticSignature; DateTime autoloopNoticeNextTry=DateTime.MinValue;
     static string AutoloopIdentity(AutoloopSnapshot snapshot){return snapshot==null?null:(snapshot.QuestionId??"")+"\u001f"+(snapshot.CardFingerprint??"");}
     bool AutoloopAnswerLocked {get{return autoloopSubmitting||(!String.IsNullOrEmpty(autoloopSubmittedQuestion)&&AutoloopIdentity(autoloopSnapshot)==autoloopSubmittedQuestion);}}
     void PresentAutoloop(){foreach(Control panel in cards.Controls)foreach(Control child in panel.Controls){var card=child as AutoloopSidebarControl;if(card!=null)card.Present(autoloopSnapshot,AutoloopAnswerLocked,autoloopFeedback);}}
@@ -194,30 +212,183 @@ namespace IslandIntegrated {
         (AutoloopIdentity(value)!=autoloopSubmittedQuestion||(manual&&autoloopSubmissionState!="confirmed"))){
         autoloopSubmittedQuestion=null;autoloopSubmissionState=null;autoloopFeedback=null;
       }
-      PresentAutoloop();return value;
+       PresentAutoloop();UpdateAutoloopNotification();return value;
     }
     async void RefreshAutoloop(){
-      if(shuttingDown||autoloopReading||DateTime.UtcNow<autoloopNext||!form.Visible||!CurrentLayout.Cards.Any(c=>c.Id=="autoloop"))return;
-      autoloopReading=true;autoloopNext=DateTime.UtcNow.AddSeconds(5);
+       if(shuttingDown)return;
+       bool enabled=CurrentLayout.Cards.Any(c=>c.Id=="autoloop");
+       if(!enabled){autoloopReminder.Observe(null,false,DateTimeOffset.UtcNow);autoloopAihotDeferredKey=null;CloseAutoloopNotification();return;}
+       DateTime now=DateTime.UtcNow;
+       if(!AutoloopPollingPolicy.CanPoll(enabled,autoloopReading,now,autoloopNext)){UpdateAutoloopNotification();return;}
+       autoloopReading=true;autoloopNext=now.AddSeconds(AutoloopPollingPolicy.IntervalSeconds(form.Visible));
       try{await ReadAutoloopSnapshot(autoloopCancellation.Token,false);}
-      catch(OperationCanceledException){}catch{if(!shuttingDown){autoloopSnapshot=null;autoloopFeedback="数据不可用";PresentAutoloop();}}
-      finally{autoloopReading=false;}
+       catch(OperationCanceledException){}catch{if(!shuttingDown){autoloopSnapshot=null;autoloopFeedback="数据不可用";PresentAutoloop();}}
+       finally{autoloopReading=false;UpdateAutoloopNotification();}
     }
+     void UpdateAutoloopNotification(){
+       if(shuttingDown)return;
+       var now=DateTimeOffset.UtcNow;bool enabled=CurrentLayout.Cards.Any(c=>c.Id=="autoloop");
+       bool eligible=enabled&&AutoloopReminderState.IsEligibleAsk(autoloopSnapshot,AutoloopAnswerLocked,now);
+       autoloopReminder.Observe(eligible?autoloopSnapshot:null,AutoloopAnswerLocked,now);
+       string key=eligible?AutoloopReminderState.Identity(autoloopSnapshot,now):null;
+       if(!eligible)RecordAutoloopNotificationState("not-eligible",AutoloopEligibilityReason(enabled,now),"closed",0);
+       else if(AutoloopNotificationOpen)RecordAutoloopNotificationState("delivered","","visible",0);
+       else if(!autoloopReminder.HasPending)RecordAutoloopNotificationState("suppressed","already-shown","not-repeated",0);
+       if(autoloopNotification!=null&&(!eligible||!String.Equals(key,autoloopNotificationKey,StringComparison.Ordinal)))CloseAutoloopNotification();
+       if(autoloopReminder.HasPending){
+         if(!String.Equals(autoloopAihotDeferredKey,autoloopReminder.PendingKey,StringComparison.Ordinal)){
+           if(aihot!=null&&aihot.NotificationOpen)aihot.DeferNotification();
+           autoloopAihotDeferredKey=autoloopReminder.PendingKey;
+         }
+       }else autoloopAihotDeferredKey=null;
+       if(autoloopNotification!=null){PositionAutoloopNotification();return;}
+       TryShowAutoloopNotification(now);
+     }
+     Screen ResolveAutoloopScreen(Screen preferred){if(preferred!=null){var current=Screen.AllScreens.FirstOrDefault(s=>String.Equals(s.DeviceName,preferred.DeviceName,StringComparison.OrdinalIgnoreCase));if(current!=null)return current;}return Screen.FromPoint(Cursor.Position);}
+     string AutoloopNotificationBlockReason(){
+       if(shuttingDown)return "shutdown";
+       if(editing)return "editing";
+       if(modal)return "modal";
+       if(Native.Fullscreen(ResolveAutoloopScreen(AihotTargetScreen)))return "fullscreen";
+       if(PinkyPanelRequested)return "pinky";
+       return "";
+     }
+     bool AutoloopNotificationBlocked(){return AutoloopNotificationBlockReason().Length>0;}
+     string AutoloopEligibilityReason(bool enabled,DateTimeOffset now){
+       if(!enabled)return "card-disabled";
+       if(autoloopSnapshot==null)return "no-snapshot";
+       if(autoloopSnapshot.State!="connected")return String.IsNullOrEmpty(autoloopSnapshot.State)?"unknown":autoloopSnapshot.State;
+       if(!AutoloopSidebarControl.IsFresh(autoloopSnapshot,now))return "stale";
+       if(autoloopSnapshot.PendingCount<1)return "resolved";
+       if(AutoloopAnswerLocked)return "answer-locked";
+       if(autoloopSnapshot.CardKind!="ask")return "not-ask";
+       return "invalid-ask";
+     }
+     void RecordAutoloopNotificationState(string phase,string blockedReason,string deliveryResult,int errorCode){
+       var now=DateTimeOffset.UtcNow;
+       var snapshot=autoloopSnapshot;
+       string state=snapshot==null?"offline":snapshot.State??"unknown";
+       int pendingCount=snapshot==null?0:snapshot.PendingCount;
+       string questionId=snapshot==null?"":snapshot.QuestionId??"";
+       bool eligible=AutoloopReminderState.IsEligibleAsk(snapshot,AutoloopAnswerLocked,now);
+       string signature=String.Join("\u001f",phase,state,pendingCount.ToString(System.Globalization.CultureInfo.InvariantCulture),questionId,eligible.ToString(),blockedReason??"",deliveryResult??"",errorCode.ToString(System.Globalization.CultureInfo.InvariantCulture));
+       if(String.Equals(signature,autoloopNoticeDiagnosticSignature,StringComparison.Ordinal))return;
+       autoloopNoticeDiagnosticSignature=signature;
+       try{
+         var record=new{schema=1,utc=now.ToString("o"),pid=System.Diagnostics.Process.GetCurrentProcess().Id,state=state,pendingCount=pendingCount,questionId=questionId,eligible=eligible,phase=phase,blockedReason=blockedReason??"",deliveryResult=deliveryResult??"",errorCode=errorCode};
+         string folder=Path.Combine(Path.GetDirectoryName(path),"logs");
+         Directory.CreateDirectory(folder);
+         string target=Path.Combine(folder,"autoloop-notice-latest.json");
+         string temporary=target+".tmp";
+         string json=new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(record);
+         File.WriteAllText(temporary,json,new System.Text.UTF8Encoding(false));
+         if(File.Exists(target))File.Replace(temporary,target,null);else File.Move(temporary,target);
+       }catch{}
+     }
+     bool ResumeAutoloopReminderIfCurrent(string key){
+       var now=DateTimeOffset.UtcNow;
+       bool enabled=CurrentLayout.Cards.Any(c=>c.Id=="autoloop");
+       if(!enabled||!AutoloopReminderState.IsEligibleAsk(autoloopSnapshot,AutoloopAnswerLocked,now)||
+          !String.Equals(AutoloopReminderState.Identity(autoloopSnapshot,now),key,StringComparison.Ordinal))return false;
+       return autoloopReminder.ReleaseDisplayedForResume(key,autoloopSnapshot,AutoloopAnswerLocked,now);
+     }
+     void DeferAutoloopNotification(string key,string reason,int errorCode){
+       bool willResume=ResumeAutoloopReminderIfCurrent(key);
+       if(willResume){
+         autoloopNoticeNextTry=DateTime.UtcNow.AddSeconds(AutoloopPollingPolicy.NotificationRetrySeconds);
+         RecordAutoloopNotificationState("pending",reason,"retry-scheduled",errorCode);
+       }else{
+         string phase=AutoloopReminderState.IsEligibleAsk(autoloopSnapshot,AutoloopAnswerLocked,DateTimeOffset.UtcNow)?"suppressed":"not-eligible";
+         RecordAutoloopNotificationState(phase,reason,"closed",errorCode);
+       }
+     }
+     bool TryGetAutoloopNotificationBounds(out Rectangle bounds){var screen=ResolveAutoloopScreen(AihotTargetScreen);return AihotNotificationLayout.TryGetBounds(screen.WorkingArea,AnchoredBounds(screen),FooterHeight,PinkyReservedHeight,MinimumVisibleCardHeight,PinkyPanelRequested,out bounds);}
+     void TryShowAutoloopNotification(DateTimeOffset now){
+       if(!autoloopReminder.HasPending)return;
+       string blockedReason=AutoloopNotificationBlockReason();
+       if(blockedReason.Length>0){RecordAutoloopNotificationState("pending",blockedReason,"waiting",0);return;}
+       if(!AutoloopPollingPolicy.CanAttemptNotification(now.UtcDateTime,autoloopNoticeNextTry)){RecordAutoloopNotificationState("pending","retry-delay","waiting",0);return;}
+       Rectangle bounds;
+       if(!TryGetAutoloopNotificationBounds(out bounds)){
+         autoloopNoticeNextTry=DateTime.UtcNow.AddSeconds(AutoloopPollingPolicy.NotificationRetrySeconds);
+         RecordAutoloopNotificationState("pending","insufficient-space","waiting",0);
+         return;
+       }
+       string key=autoloopReminder.PendingKey;var snapshot=autoloopSnapshot;var screen=ResolveAutoloopScreen(AihotTargetScreen);active=screen;
+       var notice=new AutoloopNotificationForm(snapshot,expected=>OpenAutoloopDetailsFromNotification(expected,screen));
+       autoloopNotification=notice;autoloopNotificationKey=key;notice.NotificationClosed+=OnAutoloopNotificationClosed;
+       try{
+         UpdateColumnExtent();form.CommitLayoutFrame();
+         if(!TryGetAutoloopNotificationBounds(out bounds)||!notice.SetNotificationBounds(bounds))throw new InvalidOperationException("Autoloop notification bounds or first frame failed.");
+         notice.ShowLayered();
+         if(!autoloopReminder.MarkDisplayed(key,true,notice.Visible,notice.LastPushSucceeded))throw new InvalidOperationException("Autoloop notification was not displayed.");
+         autoloopNoticeNextTry=DateTime.MinValue;
+         RecordAutoloopNotificationState("delivered","","push-succeeded",0);
+         UpdateColumnExtent();form.CommitLayoutFrame();
+       }catch{
+         int errorCode=notice.LastPushError;
+         CloseAutoloopNotification();
+         autoloopNoticeNextTry=DateTime.UtcNow.AddSeconds(AutoloopPollingPolicy.NotificationRetrySeconds);
+         RecordAutoloopNotificationState("pending","push-failed","retry-scheduled",errorCode);
+       }
+     }
+     void PositionAutoloopNotification(){
+       if(autoloopNotification==null||autoloopNotification.IsDisposed)return;
+       string blockedReason=AutoloopNotificationBlockReason();
+       if(blockedReason.Length>0){
+         string key=autoloopNotificationKey;
+         DeferAutoloopNotification(key,blockedReason,0);
+         CloseAutoloopNotification();
+         return;
+       }
+       Rectangle bounds;
+       if(!TryGetAutoloopNotificationBounds(out bounds)){
+         string key=autoloopNotificationKey;
+         DeferAutoloopNotification(key,"insufficient-space",0);
+         CloseAutoloopNotification();
+         return;
+       }
+       if(!autoloopNotification.SetNotificationBounds(bounds)){
+         string key=autoloopNotificationKey;
+         int errorCode=autoloopNotification.LastPushError;
+         DeferAutoloopNotification(key,"push-failed",errorCode);
+         CloseAutoloopNotification();
+       }
+     }
+     void CloseAutoloopNotification(){var current=autoloopNotification;if(current==null)return;try{current.Close();}catch{}if(Object.ReferenceEquals(autoloopNotification,current)){autoloopNotification=null;autoloopNotificationKey=null;try{current.Dispose();}catch{}OnAutoloopNotificationChanged();}}
+     void OnAutoloopNotificationClosed(object sender,EventArgs e){
+       var current=sender as AutoloopNotificationForm;
+       if(current==null)return;
+       current.NotificationClosed-=OnAutoloopNotificationClosed;
+       if(!Object.ReferenceEquals(autoloopNotification,current))return;
+       if(!current.LastPushSucceeded)DeferAutoloopNotification(current.Identity,"push-failed",current.LastPushError);
+       autoloopNotification=null;
+       autoloopNotificationKey=null;
+       OnAutoloopNotificationChanged();
+     }
+     void OnAutoloopNotificationChanged(){if(shuttingDown)return;UpdateColumnExtent();form.CommitLayoutFrame();PositionAihotNotification();}
+     void OpenAutoloopDetailsFromNotification(string key,Screen screen){
+       RecordAutoloopNotificationState("opened-details","","user-click",0);
+       if(AutoloopNotificationBlocked()||!AutoloopReminderState.IsEligibleAsk(autoloopSnapshot,AutoloopAnswerLocked,DateTimeOffset.UtcNow)||!String.Equals(AutoloopReminderState.Identity(autoloopSnapshot),key,StringComparison.Ordinal))return;
+       active=ResolveAutoloopScreen(screen??AihotTargetScreen);
+       if(!form.Visible){state.Open=true;suppressedUntil=0;PresentReveal(true,active,PreviewClock.NowMs);form.CommitLayoutFrame();}
+       OpenAutoloopDetails();
+     }
     async void AnswerAutoloop(string question,string option,string fingerprint){await SubmitAutoloopAnswer(question,option,fingerprint,autoloopCancellation.Token);}
     async Task<AutoloopActionResult> SubmitAutoloopAnswer(string question,string option,string fingerprint,System.Threading.CancellationToken token){
       if(shuttingDown||AutoloopAnswerLocked||!AutoloopSidebarControl.IsFresh(autoloopSnapshot,DateTimeOffset.UtcNow)||autoloopSnapshot.QuestionId!=question||String.IsNullOrEmpty(fingerprint)||autoloopSnapshot.CardFingerprint!=fingerprint||autoloopSnapshot.Options==null||!autoloopSnapshot.Options.Any(x=>x!=null&&x.Id==option))return new AutoloopActionResult{State="rejected",Message="问题已变化或正在提交，请刷新核对"};
-      autoloopSubmittedQuestion=AutoloopIdentity(autoloopSnapshot);autoloopSubmitting=true;autoloopFeedback="正在提交，请等待确认";PresentAutoloop();
+       autoloopSubmittedQuestion=AutoloopIdentity(autoloopSnapshot);autoloopSubmitting=true;autoloopFeedback="正在提交，请等待确认";PresentAutoloop();UpdateAutoloopNotification();
       var result=new AutoloopActionResult();
       try{result=await autoloopBridge.AnswerAsync(question,option,fingerprint,token)??result;}
       catch(OperationCanceledException){result.Message="提交已中断，结果未知";}catch{result.Message="提交未确认，请刷新核对";}
       finally{autoloopSubmitting=false;}
       autoloopSubmissionState=result.State;autoloopFeedback=result.Message;
-      if(!shuttingDown){autoloopNext=DateTime.MinValue;PresentAutoloop();}return result;
+       if(!shuttingDown){autoloopNext=DateTime.MinValue;PresentAutoloop();UpdateAutoloopNotification();}return result;
     }
     void OpenAutoloopDetails(){
       if(shuttingDown||editing||modal)return;
       modal=true;
-      try{using(var detail=new AutoloopDetailView(autoloopSnapshot)){
+       try{using(var detail=new AutoloopDetailView(autoloopSnapshot,AihotTargetScreen.WorkingArea)){
         detail.ReduceMotion=ReducedMotion;detail.AnswerAsync=SubmitAutoloopAnswer;
         if(AutoloopAnswerLocked&&!autoloopSubmitting)detail.PriorSubmission=new AutoloopActionResult{State=autoloopSubmissionState??"unknown",Message=autoloopFeedback};
         detail.RefreshAsync=token=>ReadAutoloopSnapshot(token,true);
@@ -291,7 +462,7 @@ namespace IslandIntegrated {
     public int CleanupErrors {get;private set;}
     public void Shutdown() {
       if(shuttingDown)return;shuttingDown=true;revealPrecision.Dispose();statusPrecision.Dispose();if(dragInput!=null)dragInput.Cancel();EndDragPreview();
-      CleanupErrors=cleanup.Run(()=>pinkySession.Dispose(),()=>{if(routeDropdown!=null){routeDropdown.Dispose();routeDropdown=null;}},()=>timer.Stop(),()=>timer.Dispose(),()=>{autoloopCancellation.Cancel();autoloopBridge.Dispose();autoloopCancellation.Dispose();},()=>aihot.Dispose(),()=>localSource.Dispose(),()=>{mediaSource.StateChanged-=OnMediaChanged;mediaSource.Dispose();VoicePreview.Close();},()=>{lyricsSequence++;if(lyricsCancellation!=null){lyricsCancellation.Cancel();lyricsCancellation.Dispose();lyricsCancellation=null;}lyricsSource.Dispose();},()=>{var linked=status as NoActivateForm;if(linked!=null)linked.GeometryContextChanged-=OnGeometryContextChanged;},()=>themePicker.Dispose(),()=>{if(addMenu!=null)addMenu.Dispose();},()=>{if(form.ContextMenuStrip!=null)form.ContextMenuStrip.Dispose();},()=>form.Dispose(),()=>{if(artwork!=null){artwork.Dispose();artwork=null;}});
+      CleanupErrors=cleanup.Run(()=>pinkySession.Dispose(),()=>{if(routeDropdown!=null){routeDropdown.Dispose();routeDropdown=null;}},()=>timer.Stop(),()=>timer.Dispose(),CloseAutoloopNotification,()=>{autoloopCancellation.Cancel();autoloopBridge.Dispose();autoloopCancellation.Dispose();},()=>aihot.Dispose(),()=>localSource.Dispose(),()=>{mediaSource.StateChanged-=OnMediaChanged;mediaSource.Dispose();VoicePreview.Close();},()=>{lyricsSequence++;if(lyricsCancellation!=null){lyricsCancellation.Cancel();lyricsCancellation.Dispose();lyricsCancellation=null;}lyricsSource.Dispose();},()=>{var linked=status as NoActivateForm;if(linked!=null)linked.GeometryContextChanged-=OnGeometryContextChanged;},()=>themePicker.Dispose(),()=>{if(addMenu!=null)addMenu.Dispose();},()=>{if(form.ContextMenuStrip!=null)form.ContextMenuStrip.Dispose();},()=>form.Dispose(),()=>{if(artwork!=null){artwork.Dispose();artwork=null;}});
     }
     public static bool TestShutdown(NeteaseSource source) {
       var app=new App(Path.Combine(Path.GetTempPath(),"column-test-no-layout.xml"),null,source);
@@ -386,6 +557,7 @@ namespace IslandIntegrated {
     int MinimumVisibleCardHeight {get{return CurrentLayout.Cards.Count==0?0:Math.Min(CornerLayout.CompactHeight,CardHeight(CurrentLayout.Cards[0]));}}
     Screen AihotTargetScreen {get{return active??(status!=null&&status.IsHandleCreated?Screen.FromHandle(status.Handle):Screen.PrimaryScreen);}}
     bool CanOpenAihotNotification() {
+      if(autoloopReminder.BlocksAihot(AutoloopNotificationOpen))return false;
       if(aihot.NotificationOpen)return true;
       var screen=AihotTargetScreen;
       Rectangle column=AnchoredBounds(screen),bounds;
@@ -436,7 +608,7 @@ namespace IslandIntegrated {
       return p.X>=left && p.X<screen.Right && p.Y>=top && p.Y<bottom;
     }
     readonly PlacementKey placement=new PlacementKey();
-    void OnGeometryContextChanged(object sender,EventArgs e){placement.Invalidate();PositionAihotNotification();}
+    void OnGeometryContextChanged(object sender,EventArgs e){placement.Invalidate();PositionAihotNotification();PositionAutoloopNotification();}
     Rectangle StatusSurface(){return status==null||StatusHidden?Rectangle.Empty:CornerLayout.Body(TargetArea,StatusBodyHeight,StatusShadowMargin,SystemInformation.VerticalScrollBarWidth);}
     Rectangle AnchoredBounds(Screen screen)
     {
@@ -459,7 +631,7 @@ namespace IslandIntegrated {
     }
     void Place(Screen s){var bounds=AnchoredBounds(s);form.Bounds=bounds;columnCapacity=bounds.Height;baseColumnWidth=Math.Min(WidgetGrid.DefaultColumnWidth,bounds.Width);cards.Width=form.Width;cards.Height=Math.Max(1,columnCapacity-FooterHeight-8);}
     int CardWidth(Card c){return WidgetGrid.Small(c)?WidgetGrid.SmallWidth(baseColumnWidth):baseColumnWidth;}
-    int CardHeight(Card c) {if(WidgetGrid.Small(c))return WidgetGrid.SmallWidth(baseColumnWidth);if(c.Id=="clock"&&c.SizeMode=="small"&&c.ClockMode=="strip")return 120;if(c.Id=="calendar")return 380;return c.Id=="aihot"?176:c.Id=="clock"?380:c.Id=="music"?208:c.Id=="weather"?176:c.Id=="autoloop"?176:(c.Size=="小"?112:c.Size=="大"?192:132);}
+    int CardHeight(Card c) {if(WidgetGrid.Small(c))return WidgetGrid.SmallWidth(baseColumnWidth);if(c.Id=="clock"&&c.SizeMode=="small"&&c.ClockMode=="strip")return 120;if(c.Id=="calendar")return 380;return c.Id=="aihot"?AihotCardHeight:c.Id=="clock"?380:c.Id=="music"?208:c.Id=="weather"?176:c.Id=="autoloop"?176:(c.Size=="小"?112:c.Size=="大"?192:132);}
     readonly object evidenceLock=new object();Rectangle evidenceStatus,evidenceColumn;long evidenceDue;bool evidencePending;
     static string JsonString(string value){return "\""+(value??"").Replace("\\","\\\\").Replace("\"","\\\"")+"\"";}
     static string JsonRect(Rectangle r){return "{\"x\":"+r.X+",\"y\":"+r.Y+",\"width\":"+r.Width+",\"height\":"+r.Height+"}";}
@@ -502,8 +674,9 @@ namespace IslandIntegrated {
       // Status detail is part of the same hover region; it moves cards rather than dismissing them.
       bool show=state.Open&&!blocked;
       PresentReveal(show,active??s,now);
-      if(aihot.NotificationOpen)PositionAihotNotification();
-      aihot.Tick(layout.Cards.Any(c=>c.Id=="aihot"),!FullscreenBlocked&&!editing&&!modal&&!PinkyPanelRequested&&CanOpenAihotNotification());
+       if(aihot.NotificationOpen)PositionAihotNotification();
+       UpdateAutoloopNotification();
+       aihot.Tick(layout.Cards.Any(c=>c.Id=="aihot"),!FullscreenBlocked&&!editing&&!modal&&!PinkyPanelRequested&&!autoloopReminder.BlocksAihot(AutoloopNotificationOpen)&&CanOpenAihotNotification());
       timer.Interval=reveal.Moving?15:30;
       if(mediaRefreshPolicy.Due(now,form.Visible,mediaRefreshing,DateTime.UtcNow<mediaFastUntil))RefreshMedia();
       bool enabled=!ReducedMotion&&!blocked&&!modal&&dragging==null&&!editing&&!reveal.Moving;

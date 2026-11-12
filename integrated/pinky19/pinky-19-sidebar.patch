@@ -1,211 +1,3 @@
-diff --git a/LICENSE b/LICENSE
-new file mode 100644
-index 0000000000000000000000000000000000000000..57bc88a15a0ee8266c259b2667e64608d3f7e292
---- /dev/null
-+++ b/LICENSE
-@@ -0,0 +1,202 @@
-+                                 Apache License
-+                           Version 2.0, January 2004
-+                        http://www.apache.org/licenses/
-+
-+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-+
-+   1. Definitions.
-+
-+      "License" shall mean the terms and conditions for use, reproduction,
-+      and distribution as defined by Sections 1 through 9 of this document.
-+
-+      "Licensor" shall mean the copyright owner or entity authorized by
-+      the copyright owner that is granting the License.
-+
-+      "Legal Entity" shall mean the union of the acting entity and all
-+      other entities that control, are controlled by, or are under common
-+      control with that entity. For the purposes of this definition,
-+      "control" means (i) the power, direct or indirect, to cause the
-+      direction or management of such entity, whether by contract or
-+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-+      outstanding shares, or (iii) beneficial ownership of such entity.
-+
-+      "You" (or "Your") shall mean an individual or Legal Entity
-+      exercising permissions granted by this License.
-+
-+      "Source" form shall mean the preferred form for making modifications,
-+      including but not limited to software source code, documentation
-+      source, and configuration files.
-+
-+      "Object" form shall mean any form resulting from mechanical
-+      transformation or translation of a Source form, including but
-+      not limited to compiled object code, generated documentation,
-+      and conversions to other media types.
-+
-+      "Work" shall mean the work of authorship, whether in Source or
-+      Object form, made available under the License, as indicated by a
-+      copyright notice that is included in or attached to the work
-+      (an example is provided in the Appendix below).
-+
-+      "Derivative Works" shall mean any work, whether in Source or Object
-+      form, that is based on (or derived from) the Work and for which the
-+      editorial revisions, annotations, elaborations, or other modifications
-+      represent, as a whole, an original work of authorship. For the purposes
-+      of this License, Derivative Works shall not include works that remain
-+      separable from, or merely link (or bind by name) to the interfaces of,
-+      the Work and Derivative Works thereof.
-+
-+      "Contribution" shall mean any work of authorship, including
-+      the original version of the Work and any modifications or additions
-+      to that Work or Derivative Works thereof, that is intentionally
-+      submitted to Licensor for inclusion in the Work by the copyright owner
-+      or by an individual or Legal Entity authorized to submit on behalf of
-+      the copyright owner. For the purposes of this definition, "submitted"
-+      means any form of electronic, verbal, or written communication sent
-+      to the Licensor or its representatives, including but not limited to
-+      communication on electronic mailing lists, source code control systems,
-+      and issue tracking systems that are managed by, or on behalf of, the
-+      Licensor for the purpose of discussing and improving the Work, but
-+      excluding communication that is conspicuously marked or otherwise
-+      designated in writing by the copyright owner as "Not a Contribution."
-+
-+      "Contributor" shall mean Licensor and any individual or Legal Entity
-+      on behalf of whom a Contribution has been received by Licensor and
-+      subsequently incorporated within the Work.
-+
-+   2. Grant of Copyright License. Subject to the terms and conditions of
-+      this License, each Contributor hereby grants to You a perpetual,
-+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-+      copyright license to reproduce, prepare Derivative Works of,
-+      publicly display, publicly perform, sublicense, and distribute the
-+      Work and such Derivative Works in Source or Object form.
-+
-+   3. Grant of Patent License. Subject to the terms and conditions of
-+      this License, each Contributor hereby grants to You a perpetual,
-+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-+      (except as stated in this section) patent license to make, have made,
-+      use, offer to sell, sell, import, and otherwise transfer the Work,
-+      where such license applies only to those patent claims licensable
-+      by such Contributor that are necessarily infringed by their
-+      Contribution(s) alone or by combination of their Contribution(s)
-+      with the Work to which such Contribution(s) was submitted. If You
-+      institute patent litigation against any entity (including a
-+      cross-claim or counterclaim in a lawsuit) alleging that the Work
-+      or a Contribution incorporated within the Work constitutes direct
-+      or contributory patent infringement, then any patent licenses
-+      granted to You under this License for that Work shall terminate
-+      as of the date such litigation is filed.
-+
-+   4. Redistribution. You may reproduce and distribute copies of the
-+      Work or Derivative Works thereof in any medium, with or without
-+      modifications, and in Source or Object form, provided that You
-+      meet the following conditions:
-+
-+      (a) You must give any other recipients of the Work or
-+          Derivative Works a copy of this License; and
-+
-+      (b) You must cause any modified files to carry prominent notices
-+          stating that You changed the files; and
-+
-+      (c) You must retain, in the Source form of any Derivative Works
-+          that You distribute, all copyright, patent, trademark, and
-+          attribution notices from the Source form of the Work,
-+          excluding those notices that do not pertain to any part of
-+          the Derivative Works; and
-+
-+      (d) If the Work includes a "NOTICE" text file as part of its
-+          distribution, then any Derivative Works that You distribute must
-+          include a readable copy of the attribution notices contained
-+          within such NOTICE file, excluding those notices that do not
-+          pertain to any part of the Derivative Works, in at least one
-+          of the following places: within a NOTICE text file distributed
-+          as part of the Derivative Works; within the Source form or
-+          documentation, if provided along with the Derivative Works; or,
-+          within a display generated by the Derivative Works, if and
-+          wherever such third-party notices normally appear. The contents
-+          of the NOTICE file are for informational purposes only and
-+          do not modify the License. You may add Your own attribution
-+          notices within Derivative Works that You distribute, alongside
-+          or as an addendum to the NOTICE text from the Work, provided
-+          that such additional attribution notices cannot be construed
-+          as modifying the License.
-+
-+      You may add Your own copyright statement to Your modifications and
-+      may provide additional or different license terms and conditions
-+      for use, reproduction, or distribution of Your modifications, or
-+      for any such Derivative Works as a whole, provided Your use,
-+      reproduction, and distribution of the Work otherwise complies with
-+      the conditions stated in this License.
-+
-+   5. Submission of Contributions. Unless You explicitly state otherwise,
-+      any Contribution intentionally submitted for inclusion in the Work
-+      by You to the Licensor shall be under the terms and conditions of
-+      this License, without any additional terms or conditions.
-+      Notwithstanding the above, nothing herein shall supersede or modify
-+      the terms of any separate license agreement you may have executed
-+      with Licensor regarding such Contributions.
-+
-+   6. Trademarks. This License does not grant permission to use the trade
-+      names, trademarks, service marks, or product names of the Licensor,
-+      except as required for reasonable and customary use in describing the
-+      origin of the Work and reproducing the content of the NOTICE file.
-+
-+   7. Disclaimer of Warranty. Unless required by applicable law or
-+      agreed to in writing, Licensor provides the Work (and each
-+      Contributor provides its Contributions) on an "AS IS" BASIS,
-+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-+      implied, including, without limitation, any warranties or conditions
-+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
-+      PARTICULAR PURPOSE. You are solely responsible for determining the
-+      appropriateness of using or redistributing the Work and assume any
-+      risks associated with Your exercise of permissions under this License.
-+
-+   8. Limitation of Liability. In no event and under no legal theory,
-+      whether in tort (including negligence), contract, or otherwise,
-+      unless required by applicable law (such as deliberate and grossly
-+      negligent acts) or agreed to in writing, shall any Contributor be
-+      liable to You for damages, including any direct, indirect, special,
-+      incidental, or consequential damages of any character arising as a
-+      result of this License or out of the use or inability to use the
-+      Work (including but not limited to damages for loss of goodwill,
-+      work stoppage, computer failure or malfunction, or any and all
-+      other commercial damages or losses), even if such Contributor
-+      has been advised of the possibility of such damages.
-+
-+   9. Accepting Warranty or Additional Liability. While redistributing
-+      the Work or Derivative Works thereof, You may choose to offer,
-+      and charge a fee for, acceptance of support, warranty, indemnity,
-+      or other liability obligations and/or rights consistent with this
-+      License. However, in accepting such obligations, You may act only
-+      on Your own behalf and on Your sole responsibility, not on behalf
-+      of any other Contributor, and only if You agree to indemnify,
-+      defend, and hold each Contributor harmless for any liability
-+      incurred by, or claims asserted against, such Contributor by reason
-+      of your accepting any such warranty or additional liability.
-+
-+   END OF TERMS AND CONDITIONS
-+
-+   APPENDIX: How to apply the Apache License to your work.
-+
-+      To apply the Apache License to your work, attach the following
-+      boilerplate notice, with the fields enclosed by brackets "[]"
-+      replaced with your own identifying information. (Don't include
-+      the brackets!)  The text should be enclosed in the appropriate
-+      comment syntax for the file format. We also recommend that a
-+      file or class name and description of purpose be included on the
-+      same "printed page" as the copyright notice for easier
-+      identification within third-party archives.
-+
-+   Copyright [yyyy] [name of copyright owner]
-+
-+   Licensed under the Apache License, Version 2.0 (the "License");
-+   you may not use this file except in compliance with the License.
-+   You may obtain a copy of the License at
-+
-+       http://www.apache.org/licenses/LICENSE-2.0
-+
-+   Unless required by applicable law or agreed to in writing, software
-+   distributed under the License is distributed on an "AS IS" BASIS,
-+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+   See the License for the specific language governing permissions and
-+   limitations under the License.
-+
 diff --git a/cmd/pinky-ui-demo/main.go b/cmd/pinky-ui-demo/main.go
 index 2625d90a61a2c9e0bfa64c2d0c0f939ee800ac1e..c952814fdf17efa55c7af026b9c9497f9b11bc8f 100644
 --- a/cmd/pinky-ui-demo/main.go
@@ -287,20 +79,43 @@ index a645e24399c55b3396aa3318e6cd3094641b2458..aa6d007ada63c712eda18536eab5b472
    "needsDone": "完成",
    "needsDoneTooltip": "把手机交还给 {agent}",
    "needsFirstConnection": "首次连接",
+diff --git a/cmd/pinky/mygo.json b/cmd/pinky/mygo.json
+index 2bb8a9741c0c55326b01eaa70c7bd873c4bb284f..284a5d6d21234d1db7d4c45cb317394d8a7d0332 100644
+--- a/cmd/pinky/mygo.json
++++ b/cmd/pinky/mygo.json
+@@ -2,7 +2,7 @@
+   "name": "Pinky",
+   "slug": "pinky",
+   "identifier": "app.pinky.desktop",
+-  "version": "0.0.0-dev",
++  "version": "2026.1112.19+sidebar.20261112.8",
+   "copyright": "Copyright © 2026 DIYgod",
+   "icon": "../../assets/icon/pinky-macos-1024.png",
+   "out": "../../build/pinky",
 diff --git a/docs/notes/handoff-ack.md b/docs/notes/handoff-ack.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..805f5043a2d22afe982397eade78abacf0cdbb2a
+index 0000000000000000000000000000000000000000..47bc6da212a279577309c8869bb7cb98926caee4
 --- /dev/null
 +++ b/docs/notes/handoff-ack.md
-@@ -0,0 +1,7 @@
-+# Sidebar handoff and host integration
+@@ -0,0 +1,18 @@
++# Handoff acknowledgement feedback
 +
-+This patch waits for the gateway response before recording a successful handoff. Pending, rejected and queued decisions keep distinct feedback and retry behavior. Request identity is checked before dispatch, duplicate clicks are suppressed, and late responses cannot replace a newer card. The Windows panel host validates fresh leases and the process/window identity before attaching the sidebar panel. Other platforms retain the ordinary Pinky panel behavior.
++The handoff card now waits for the gateway's decision response before recording a successful answer. Pending requests show Submitting, rejected requests retain their note and show the returned error, and a full local action queue leaves an explicit retry message.
 +
-+## Checks
++The client matches the current Need ID, device and task before dispatch. An in-flight or acknowledged request suppresses duplicate clicks. Replies belong to the state object created for that request, so a late response cannot replace a newer card. Taking over keeps Done available after acknowledgement, and declining retains its distinct confirmation.
 +
-+Against the pinned Pinky 19 source, the Windows client build and vet passed. The targeted UI and locale packages passed. The full package suite was not run for this exported patch. A separate desktop integration run attached the live panel in the hidden idle state at 360×80 with matching lease identity and zero phone actions. The detail view and real handoff button callback remain unverified; phone testing is paused until tomorrow.
-\ No newline at end of file
++The gateway API and its trusted-presence checks remain the authority for each decision. The patch changes the desktop UI and three language catalogs. Production activation and a real phone hand-back are pending coordination with the phone session owner.
++
++## Verification
++
++Eight isolated UI regressions cover delayed acknowledgement, success, failure and retry, queue rejection and retry, duplicate and replaced request identities, decline, take-over followed by Done, and a late response. Before the patch, three regressions reproduced optimistic success on a pending, rejected or unqueued decision.
++
++Go build and vet pass. The complete UI package, locale package and fake API tests pass. The full test run reports two Windows symbolic-link fixture failures in internal/apppkg and internal/mcp. TestDownloadLink reports a missing client privilege, and TestPackApp ignores its symbolic-link creation error before expecting a rejected package. These packages retain their baseline source. Full verification remains incomplete at those fixtures.
++
++## Suggested release notes
++
++- English. Handoff cards show success after the gateway accepts the response, with clear pending, failure and retry feedback.
++- 简体中文。交还卡片在网关接受回执后显示成功，并清楚显示提交中、失败和重试状态。
 diff --git a/ui/handoff_ack_test.go b/ui/handoff_ack_test.go
 new file mode 100644
 index 0000000000000000000000000000000000000000..c2870374abf605c030e37b884bba18f3453bc549
@@ -537,7 +352,7 @@ index 0000000000000000000000000000000000000000..c2870374abf605c030e37b884bba18f3
 +	t.Fatal("late response was not observed")
 +}
 diff --git a/ui/panel.go b/ui/panel.go
-index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..a60736da3d1ae18c666d0466417553ac137bf3af 100644
+index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..5dad4f2739777a564c26991b151d2bddea7d83f4 100644
 --- a/ui/panel.go
 +++ b/ui/panel.go
 @@ -1,7 +1,9 @@
@@ -813,11 +628,10 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..a60736da3d1ae18c666d0466417553ac
 +				collapse := button(c, "", btnOpt{small: true, icon: icChevU, label: locales.TasksDetails()}).
 +					Key("sidebar-collapse-" + n.ID).Width(32).Height(28).Padding(0)
 +				if a.panelHostOpaque() {
-+					w, h := a.panelSize()
 +					collapseHitRect := collapse.Bounds()
 +					collapse.HandleInput(func(ev mg.InputEvent) bool {
 +						if sidebarTraceInput(ev) {
-+							a.logSidebarInput("detail-collapse", n, mg.Rect{W: float32(w), H: float32(h)}, collapseHitRect, ev)
++							a.logSidebarInput("detail-collapse", n, sidebarRenderFloatingPanel, nil, collapseHitRect, ev)
 +						}
 +						return false
 +					})
@@ -825,7 +639,8 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..a60736da3d1ae18c666d0466417553ac
 +				if a.panelHostOpaque() && collapse.Clicked() {
 +					if a.opt.Log != nil {
 +						a.opt.Log.Info("pinky UI input", "event", "sidebar-detail-collapse", "view", "expanded-detail",
-+							"host_opaque", a.panelHostOpaque(), "panel_hosted", a.panelHosted(), "host_dpi", a.panelHostDPI(),
++							"render_context", sidebarRenderFloatingPanel, "panel_host_configured", a.panelHostOpaque(),
++							"native_owner_attached", a.panelHosted(), "panel_host_dpi", a.panelHostDPI(),
 +							"need_id", n.ID, "need_kind", n.Kind)
 +					}
 +					a.panelExpandedNeedID = ""
@@ -836,7 +651,16 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..a60736da3d1ae18c666d0466417553ac
  				if len(asks) > 1 {
  					mg.Row(c).Gap(2).AlignItems(mg.Center).Role(mg.RoleGroup).Label(locales.PanelWaitingApprovals()).Children(func() {
  						if arrowButton(c, icChevL, locales.PanelPrevious(), a.panelIdx == 0).Clicked() {
-@@ -355,6 +505,235 @@ func (a *app) panelView(c *mg.Context) {
+@@ -289,7 +439,7 @@ func (a *app) panelView(c *mg.Context) {
+ 			switch {
+ 			case n.Kind == gateway.NeedHandoff:
+ 				mg.Spacer(c)
+-				a.handoffControls(c, n)
++				a.handoffControls(c, n, sidebarRenderFloatingPanel)
+ 				return
+ 			case newAgentNeed(n):
+ 				mg.Spacer(c)
+@@ -355,6 +505,260 @@ func (a *app) panelView(c *mg.Context) {
  	})
  }
  
@@ -856,7 +680,7 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..a60736da3d1ae18c666d0466417553ac
 +			summaryHitRect := summary.Bounds()
 +			summary.ObserveInput(func(ev mg.InputEvent) {
 +				if sidebarTraceInput(ev) {
-+					a.logSidebarInput("summary", n, cardHitRect, summaryHitRect, ev)
++					a.logSidebarInput("summary", n, sidebarRenderFloatingPanel, &cardHitRect, summaryHitRect, ev)
 +				}
 +			})
 +			summary.Children(func() {
@@ -907,7 +731,7 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..a60736da3d1ae18c666d0466417553ac
 +				primaryHitRect := primary.Bounds()
 +				primary.HandleInput(func(ev mg.InputEvent) bool {
 +					if sidebarTraceInput(ev) {
-+						a.logSidebarInput("primary", n, cardHitRect, primaryHitRect, ev)
++						a.logSidebarInput("primary", n, sidebarRenderFloatingPanel, &cardHitRect, primaryHitRect, ev)
 +					}
 +					return false
 +				})
@@ -932,17 +756,18 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..a60736da3d1ae18c666d0466417553ac
 +					a.opt.Log.Info("pinky UI input", "event", event,
 +						"need_id", n.ID, "need_kind", n.Kind,
 +						"view", "compact-notice", "target_view", map[bool]string{true: "expanded-detail", false: "compact-notice"}[summaryClicked],
-+						"host_opaque", a.panelHostOpaque(), "panel_hosted", a.panelHosted(),
++						"render_context", sidebarRenderFloatingPanel,
++						"panel_host_configured", a.panelHostOpaque(), "native_owner_attached", a.panelHosted(),
 +						"summary_clicked", summaryClicked, "primary_clicked", primaryClicked,
-+						"card_w", cardRect.W, "card_h", cardRect.H, "host_dpi", a.panelHostDPI(),
-+						"summary_x", summaryRect.X-cardRect.X, "summary_y", summaryRect.Y-cardRect.Y,
-+						"summary_w", summaryRect.W, "summary_h", summaryRect.H,
++						"card_w_dip", cardRect.W, "card_h_dip", cardRect.H, "panel_host_dpi", a.panelHostDPI(),
++						"summary_card_x_dip", summaryRect.X-cardRect.X, "summary_card_y_dip", summaryRect.Y-cardRect.Y,
++						"summary_w_dip", summaryRect.W, "summary_h_dip", summaryRect.H,
 +						"summary_pointer_over", summaryPointerOver,
-+						"summary_pointer_card_x", summaryRect.X-cardRect.X+summaryPointerX, "summary_pointer_card_y", summaryRect.Y-cardRect.Y+summaryPointerY,
-+						"primary_x", primaryRect.X-cardRect.X, "primary_y", primaryRect.Y-cardRect.Y,
-+						"primary_w", primaryRect.W, "primary_h", primaryRect.H,
++						"summary_pointer_card_x_dip", summaryRect.X-cardRect.X+summaryPointerX, "summary_pointer_card_y_dip", summaryRect.Y-cardRect.Y+summaryPointerY,
++						"primary_card_x_dip", primaryRect.X-cardRect.X, "primary_card_y_dip", primaryRect.Y-cardRect.Y,
++						"primary_w_dip", primaryRect.W, "primary_h_dip", primaryRect.H,
 +						"primary_pointer_over", primaryPointerOver,
-+						"primary_pointer_card_x", primaryRect.X-cardRect.X+primaryPointerX, "primary_pointer_card_y", primaryRect.Y-cardRect.Y+primaryPointerY)
++						"primary_pointer_card_x_dip", primaryRect.X-cardRect.X+primaryPointerX, "primary_pointer_card_y_dip", primaryRect.Y-cardRect.Y+primaryPointerY)
 +				}
 +			}
 +			if summaryClicked {
@@ -975,7 +800,15 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..a60736da3d1ae18c666d0466417553ac
 +	}
 +}
 +
-+func (a *app) logSidebarInput(source string, n gateway.NeedView, card, hit mg.Rect, ev mg.InputEvent) {
++type sidebarRenderContext string
++
++const (
++	sidebarRenderUnknown       sidebarRenderContext = "unknown"
++	sidebarRenderMainWindow    sidebarRenderContext = "main-window-right-panel"
++	sidebarRenderFloatingPanel sidebarRenderContext = "floating-panel-window"
++)
++
++func (a *app) logSidebarInput(source string, n gateway.NeedView, renderContext sidebarRenderContext, card *mg.Rect, hit mg.Rect, ev mg.InputEvent) {
 +	if a.opt.Log == nil {
 +		return
 +	}
@@ -986,13 +819,29 @@ index 3fb9bf2ddf413cd74a9b4971ce3cf93c94b3cf3a..a60736da3d1ae18c666d0466417553ac
 +	case mg.InputKeyDown:
 +		event = "key-down"
 +	}
-+	a.opt.Log.Info("pinky UI input", "event", "sidebar-"+source+"-"+event,
++	pointerCoordinatesAvailable := ev.Kind == mg.InputPointerDown || ev.Kind == mg.InputPointerUp
++	fields := []any{"event", "sidebar-" + source + "-" + event,
 +		"need_id", n.ID, "need_kind", n.Kind, "input_button", ev.Button, "input_key", ev.Key,
 +		"input_pointer", ev.Pointer, "input_canceled", ev.Canceled,
-+		"host_opaque", a.panelHostOpaque(), "panel_hosted", a.panelHosted(), "host_dpi", a.panelHostDPI(),
-+		"card_w", card.W, "card_h", card.H,
-+		"hit_x", hit.X-card.X, "hit_y", hit.Y-card.Y, "hit_w", hit.W, "hit_h", hit.H,
-+		"pointer_card_x", hit.X-card.X+ev.X, "pointer_card_y", hit.Y-card.Y+ev.Y)
++		"render_context", renderContext, "coordinate_space", "window-dip",
++		"panel_host_configured", a.panelHostOpaque(), "native_owner_attached", a.panelHosted(), "panel_host_dpi", a.panelHostDPI(),
++		"hit_window_x_dip", hit.X, "hit_window_y_dip", hit.Y, "hit_window_w_dip", hit.W, "hit_window_h_dip", hit.H,
++		"pointer_coordinates_available", pointerCoordinatesAvailable}
++	if pointerCoordinatesAvailable {
++		fields = append(fields,
++			"pointer_element_x_dip", ev.X, "pointer_element_y_dip", ev.Y,
++			"pointer_window_x_dip", hit.X+ev.X, "pointer_window_y_dip", hit.Y+ev.Y)
++	}
++	if card != nil && card.W > 0 && card.H > 0 {
++		fields = append(fields, "card_local_available", true,
++			"hit_card_x_dip", hit.X-card.X, "hit_card_y_dip", hit.Y-card.Y)
++		if pointerCoordinatesAvailable {
++			fields = append(fields, "pointer_card_x_dip", hit.X-card.X+ev.X, "pointer_card_y_dip", hit.Y-card.Y+ev.Y)
++		}
++	} else {
++		fields = append(fields, "card_local_available", false)
++	}
++	a.opt.Log.Info("pinky UI input", fields...)
 +}
 +
 +func panelDeadlineText(n gateway.NeedView) string {
@@ -2672,12 +2521,28 @@ index 0000000000000000000000000000000000000000..ea78654e66ee7555b787e769d8cb26f3
 +	}
 +}
 diff --git a/ui/rightpanel.go b/ui/rightpanel.go
-index 42656aa849253ac2914512a7f010b31f75969c07..6b8d3df69e72df15f0eb8e2192e70fccf69cd726 100644
+index 42656aa849253ac2914512a7f010b31f75969c07..9db7e97038cd0f2c9d568cab525aec6af9ea59cd 100644
 --- a/ui/rightpanel.go
 +++ b/ui/rightpanel.go
-@@ -173,6 +173,22 @@ func needEyebrow(c *mg.Context, n gateway.NeedView) {
+@@ -115,7 +115,7 @@ func (a *app) needCard(c *mg.Context, n gateway.NeedView, floating bool) {
+ 		case n.Kind == gateway.NeedUnlock:
+ 			a.unlockControls(c, n)
+ 		case n.Kind == gateway.NeedHandoff:
+-			a.handoffControls(c, n)
++			a.handoffControls(c, n, sidebarRenderMainWindow)
+ 		case n.Kind == gateway.NeedSetup:
+ 			// Done on the phone; the card goes once it is ready.
+ 		case newAgentNeed(n):
+@@ -171,8 +171,28 @@ func needEyebrow(c *mg.Context, n gateway.NeedView) {
+ // something on the phone and waits. Done hands the phone back with the
+ // note, Take over gives the person the mirror, Decline tells the agent no.
  // On a locked phone, unlocking from the computer is the first step.
- func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
+-func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
++func (a *app) handoffControls(c *mg.Context, n gateway.NeedView, renderContexts ...sidebarRenderContext) {
++	renderContext := sidebarRenderUnknown
++	if len(renderContexts) == 1 && renderContexts[0] != "" {
++		renderContext = renderContexts[0]
++	}
  	p := pal(c)
 +	reply := a.handoffReplies[n.ID]
 +	busy := reply != nil && (reply.pending || reply.completed)
@@ -2698,7 +2563,7 @@ index 42656aa849253ac2914512a7f010b31f75969c07..6b8d3df69e72df15f0eb8e2192e70fcc
  	agent := agentOf(n)
  	locked := a.unlocks[n.DeviceID]
  	// The person took over and the agent waits for them to hand back.
-@@ -222,17 +238,33 @@ func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
+@@ -222,17 +242,33 @@ func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
  	declineButton := locked || holding || setup
  	mg.Grid(c).Columns(2).Gap(8).Margin(12, 0, 0, 0).Children(func() {
  		if declineButton {
@@ -2717,11 +2582,10 @@ index 42656aa849253ac2914512a7f010b31f75969c07..6b8d3df69e72df15f0eb8e2192e70fcc
 -		if button(c, locales.NeedsDone(), done).Tooltip(locales.NeedsDoneTooltip(agent)).Clicked() {
 +		doneButton := button(c, locales.NeedsDone(), done).Disabled(busy).Tooltip(locales.NeedsDoneTooltip(agent))
 +		if a.panelHostOpaque() {
-+			w, h := a.panelSize()
 +			doneHitRect := doneButton.Bounds()
 +			doneButton.HandleInput(func(ev mg.InputEvent) bool {
 +				if sidebarTraceInput(ev) {
-+					a.logSidebarInput("detail-done", n, mg.Rect{W: float32(w), H: float32(h)}, doneHitRect, ev)
++					a.logSidebarInput("detail-done", n, renderContext, nil, doneHitRect, ev)
 +				}
 +				return false
 +			})
@@ -2729,13 +2593,14 @@ index 42656aa849253ac2914512a7f010b31f75969c07..6b8d3df69e72df15f0eb8e2192e70fcc
 +		if doneButton.Clicked() {
 +			if a.opt.Log != nil {
 +				a.opt.Log.Info("pinky UI input", "event", "handoff-detail-done", "view", "expanded-detail",
-+					"host_opaque", a.panelHostOpaque(), "panel_hosted", a.panelHosted(), "host_dpi", a.panelHostDPI(),
++					"render_context", renderContext,
++					"panel_host_configured", a.panelHostOpaque(), "native_owner_attached", a.panelHosted(), "panel_host_dpi", a.panelHostDPI(),
 +					"need_id", n.ID, "need_kind", n.Kind)
 +			}
  			a.decide(n, gateway.AllowOnce, note)
  		}
  	})
-@@ -240,7 +272,7 @@ func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
+@@ -240,7 +276,7 @@ func (a *app) handoffControls(c *mg.Context, n gateway.NeedView) {
  		if !noting && linkButton(c, locales.NeedsAddNote()).Clicked() {
  			a.noting[n.ID] = true
  		}
@@ -2941,6 +2806,221 @@ index 0000000000000000000000000000000000000000..beb6ae8c75d52d47ef3f2aaf757cfdf6
 +
 +func readSidebarAppearanceFile(string, int64) ([]byte, error) {
 +	return nil, os.ErrNotExist
++}
+diff --git a/ui/sidebar_input_log_test.go b/ui/sidebar_input_log_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..76df9506fd3f8f669b712e919b08e107ca22be2d
+--- /dev/null
++++ b/ui/sidebar_input_log_test.go
+@@ -0,0 +1,209 @@
++package ui
++
++import (
++	"bytes"
++	"log/slog"
++	"strings"
++	"testing"
++
++	"github.com/DIYgod/pinky/cmd/pinky/locales"
++	"github.com/DIYgod/pinky/internal/gateway"
++	mg "github.com/egoist/mygo/ui"
++)
++
++func TestSidebarInputLogUsesWindowDIPsWithoutInventedCardOrigin(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	var out bytes.Buffer
++	ta.opt.Log = slog.New(slog.NewTextHandler(&out, nil))
++	ta.panelHost = &panelHost{}
++
++	hit := mg.Rect{X: 1108.5, Y: 274.625, W: 124.5, H: 34}
++	ev := mg.InputEvent{Kind: mg.InputPointerDown, Button: 0, X: 102.5, Y: 7.375}
++	ta.logSidebarInput("detail-done", n, sidebarRenderMainWindow, nil, hit, ev)
++	line := out.String()
++	for _, want := range []string{
++		"render_context=main-window-right-panel",
++		"coordinate_space=window-dip",
++		"pointer_coordinates_available=true",
++		"hit_window_x_dip=1108.5",
++		"hit_window_y_dip=274.625",
++		"pointer_element_x_dip=102.5",
++		"pointer_element_y_dip=7.375",
++		"pointer_window_x_dip=1211",
++		"pointer_window_y_dip=282",
++		"card_local_available=false",
++	} {
++		if !strings.Contains(line, want) {
++			t.Errorf("trace lacks %q: %s", want, line)
++		}
++	}
++	for _, obsolete := range []string{"hit_x=", "pointer_card_x=", "card_w="} {
++		if strings.Contains(line, obsolete) {
++			t.Errorf("trace includes ambiguous field %q: %s", obsolete, line)
++		}
++	}
++}
++
++func TestSidebarInputLogDoesNotInventPointerCoordinatesForKeyboard(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	var out bytes.Buffer
++	ta.opt.Log = slog.New(slog.NewTextHandler(&out, nil))
++	ta.panelHost = &panelHost{}
++
++	hit := mg.Rect{X: 1108.5, Y: 274.625, W: 124.5, H: 34}
++	ev := mg.InputEvent{Kind: mg.InputKeyDown, Key: mg.KeyEnter, X: 102.5, Y: 7.375}
++	ta.logSidebarInput("detail-done", n, sidebarRenderMainWindow, nil, hit, ev)
++	line := out.String()
++	for _, want := range []string{
++		"render_context=main-window-right-panel",
++		"coordinate_space=window-dip",
++		"pointer_coordinates_available=false",
++		"hit_window_x_dip=1108.5",
++		"hit_window_y_dip=274.625",
++		"hit_window_w_dip=124.5",
++		"hit_window_h_dip=34",
++		"card_local_available=false",
++	} {
++		if !strings.Contains(line, want) {
++			t.Errorf("keyboard trace lacks %q: %s", want, line)
++		}
++	}
++	for _, pointerCoordinate := range []string{
++		"pointer_element_x_dip=", "pointer_element_y_dip=",
++		"pointer_window_x_dip=", "pointer_window_y_dip=",
++		"pointer_card_x_dip=", "pointer_card_y_dip=",
++	} {
++		if strings.Contains(line, pointerCoordinate) {
++			t.Errorf("keyboard trace contains pointer coordinate %q: %s", pointerCoordinate, line)
++		}
++	}
++}
++
++func TestSidebarInputLogAddsCardDIPsOnlyWithRealBounds(t *testing.T) {
++	ta, n := handoffAckApp(t)
++	var out bytes.Buffer
++	ta.opt.Log = slog.New(slog.NewTextHandler(&out, nil))
++	ta.panelHost = &panelHost{}
++
++	card := mg.Rect{X: 1080, Y: 240, W: 320, H: 500}
++	hit := mg.Rect{X: 1108.5, Y: 274.625, W: 124.5, H: 34}
++	ev := mg.InputEvent{Kind: mg.InputPointerUp, Button: 0, X: 102.5, Y: 7.375}
++	ta.logSidebarInput("detail-done", n, sidebarRenderMainWindow, &card, hit, ev)
++	line := out.String()
++	for _, want := range []string{
++		"coordinate_space=window-dip",
++		"card_local_available=true",
++		"hit_card_x_dip=28.5",
++		"hit_card_y_dip=34.625",
++		"pointer_card_x_dip=131",
++		"pointer_card_y_dip=42",
++	} {
++		if !strings.Contains(line, want) {
++			t.Errorf("trace lacks %q: %s", want, line)
++		}
++	}
++}
++
++func TestHandoffTraceNamesItsRenderingWindow(t *testing.T) {
++	for _, tc := range []struct {
++		name    string
++		context sidebarRenderContext
++		view    func(*testApp, *mg.Context)
++	}{
++		{
++			name:    "main window need card",
++			context: sidebarRenderMainWindow,
++			view: func(ta *testApp, c *mg.Context) {
++				ta.needCard(c, ta.needs[0], false)
++			},
++		},
++		{
++			name:    "floating detail card",
++			context: sidebarRenderFloatingPanel,
++			view: func(ta *testApp, c *mg.Context) {
++				ta.panelExpandedNeedID = ta.needs[0].ID
++				ta.panelView(c)
++			},
++		},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			ta, n := handoffAckApp(t)
++			ta.panelHost = &panelHost{}
++			ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(string, gateway.Decision, string) error { return nil }}
++			var out bytes.Buffer
++			ta.opt.Log = slog.New(slog.NewTextHandler(&out, nil))
++			tt := mg.NewTester(func(c *mg.Context) { tc.view(ta, c) }, panelHostW, 640)
++			r, ok := tt.Find(locales.NeedsDone())
++			if !ok || r.W <= 0 || r.H <= 0 {
++				t.Fatalf("visible Done target missing: %q", tt.Texts())
++			}
++			x, y := r.X+r.W/2, r.Y+r.H/2
++			tt.Press(x, y)
++			tt.Release(x, y)
++			line := out.String()
++			if !strings.Contains(line, "render_context="+string(tc.context)) {
++				t.Fatalf("pointer trace lacks rendering context %q: %s", tc.context, line)
++			}
++			if !strings.Contains(line, "coordinate_space=window-dip") || !strings.Contains(line, "pointer_window_x_dip=") {
++				t.Fatalf("pointer trace lacks explicit window-DIP coordinates: %s", line)
++			}
++			if !strings.Contains(line, "event=sidebar-detail-done-pointer-down") {
++				t.Fatalf("pointer trace missing Done input event: %s", line)
++			}
++			if !strings.Contains(line, "need_id="+n.ID) {
++				t.Fatalf("pointer trace missing its Need ID: %s", line)
++			}
++		})
++	}
++}
++
++func TestHandoffKeyboardEnterAndSpaceStillSubmitWithoutPointerCoordinates(t *testing.T) {
++	for _, key := range []struct {
++		name string
++		key  mg.Key
++	}{
++		{name: "Enter", key: mg.KeyEnter},
++		{name: "Space", key: mg.KeySpace},
++	} {
++		t.Run(key.name, func(t *testing.T) {
++			ta, n := handoffAckApp(t)
++			ta.panelHost = &panelHost{}
++			ta.app.api = &handoffDecisionAPI{API: ta.api, answer: func(string, gateway.Decision, string) error { return nil }}
++			var out bytes.Buffer
++			ta.opt.Log = slog.New(slog.NewTextHandler(&out, nil))
++			tt := mg.NewTester(func(c *mg.Context) { ta.needCard(c, n, false) }, panelHostW, 640)
++			label := locales.NeedsDone()
++			for i := 0; i < 80 && !tt.Focused(label); i++ {
++				tt.Key(0, mg.KeyTab)
++			}
++			if !tt.Focused(label) {
++				t.Fatalf("keyboard did not focus Done: %q", tt.Texts())
++			}
++			tt.KeyDown(key.key)
++			tt.KeyUp(key.key)
++			line := out.String()
++			for _, want := range []string{
++				"event=sidebar-detail-done-key-down",
++				"render_context=main-window-right-panel",
++				"coordinate_space=window-dip",
++				"pointer_coordinates_available=false",
++				"hit_window_w_dip=",
++				"event=handoff-detail-done",
++				"need_id=" + n.ID,
++			} {
++				if !strings.Contains(line, want) {
++					t.Errorf("%s activation trace lacks %q: %s", key.name, want, line)
++				}
++			}
++			for _, pointerCoordinate := range []string{
++				"pointer_element_x_dip=", "pointer_element_y_dip=",
++				"pointer_window_x_dip=", "pointer_window_y_dip=",
++				"pointer_card_x_dip=", "pointer_card_y_dip=",
++			} {
++				if strings.Contains(line, pointerCoordinate) {
++					t.Errorf("%s activation trace contains pointer coordinate %q: %s", key.name, pointerCoordinate, line)
++				}
++			}
++		})
++	}
 +}
 diff --git a/ui/style.go b/ui/style.go
 index 9e5bc527b9df8cb9c0610845d3cfd4f823439810..40398edd37439a7103aced57890c1b0234e7e3b0 100644

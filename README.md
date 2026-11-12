@@ -26,11 +26,11 @@ Runtime settings, layout, position and logs are stored under `%LOCALAPPDATA%\Sta
 | AIHOT compact inbox | The user confirmed the 360×176 layout, size and three footer buttons. |
 | Music and lyrics | The user confirmed playback, track changes and refresh.  |
 | Activity and visuals | The user confirmed the Codex activity estimate, breathing indicator, website timing feedback and next right-edge expansion theme behavior. Activity uses a recent WAL modification-time estimate. |
-| Autoloop | The user confirmed details and submitted a selection. The backend state and choice reconciled with the resumed fixed confirmation, and the final snapshot showed zero pending items. The acceptance rule returned a fixed confirmation. Public configuration keeps the remote bridge disabled by default. |
+| Autoloop | Details and answer return passed live acceptance, including the matching resumed fixed confirmation and zero pending items. The persistent ask notification passes 60 synthetic checks. Live acceptance of the persistent notification is pending. Hidden polling runs every 15 seconds, visible polling every 5 seconds. Pinky requests take priority. Public configuration keeps the remote bridge disabled by default. |
 | Pinky 19 | The user confirmed compact summary expansion, same-width details, an explicit Done click and the matching settled/release receipt. H.264/HEVC initialization and the iPad video preview passed on the development installation. |
-| Normal update | The development installation passed normal same-version menu exit/restart and stable registration. Six AfterRestart checks passed for layout, backups, city history, position and five runtime configs. Migration fixtures cover the AIHOT 32 MiB cap and other state files' 1 MiB cap. Rollback verification covers the parent source pin and four state backups. Executed rollback remains pending. |
+| Normal update | The development installation passed normal same-version menu exit/restart and stable registration. Six AfterRestart checks passed for layout, backups, city history, position and five runtime configs. A live rollback to the parent UI and restoration to the current UI both completed through the normal updater. Both comparisons preserved layout, position, recent weather cities and AIHOT seen, inbox and read history. Migration fixtures cover the AIHOT 32 MiB cap and other state files' 1 MiB cap. |
 
-The development installation is registered as desktop accepted. Cross-machine and mixed-DPI acceptance remains pending.
+Physical multi-monitor, mixed-DPI and cross-machine acceptance remains pending. The Pinky full Go suite retains two Windows symlink-related fixture failures, described in its verification record. [Pinky verification](integrated/pinky19/README.md)
 
 ## Older PowerShell widget
 
